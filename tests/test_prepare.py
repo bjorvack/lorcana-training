@@ -157,5 +157,5 @@ def test_prepare_live_pinned_artifacts(tmp_path: Path) -> None:
     result = prepare(PrepareOptions(out_dir=tmp_path / "prepared"))
     assert result.manifest_path.exists()
     manifest = json.loads(result.manifest_path.read_text())
-    # Pinned tournaments-v0.1.0 has 1104 decks.
-    assert manifest["validation"]["totalDecks"] == 1104
+    # Pinned tournaments-v0.3.0 has 6137 decks.
+    assert manifest["validation"]["totalDecks"] == 6137
