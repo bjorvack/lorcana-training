@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.DS_Store
+dist
+build
+*.egg-info
+out
+artifacts
+checkpoints
+wandb
+notebooks/**/.ipynb_checkpoints

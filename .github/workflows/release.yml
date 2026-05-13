@@ -1,0 +1,12 @@
+name: release
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+# TODO: publish model-vN on merge of a release PR.
+jobs:
+  noop:
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo stub

@@ -1,0 +1,9 @@
+name: train
+on:
+  workflow_dispatch:
+# TODO: full release training (proposal + evaluator) + open release PR.
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo stub

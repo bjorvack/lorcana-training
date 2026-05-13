@@ -1,0 +1,7 @@
+# Hard gates that must pass before a model is released.
+# Matches the metric keys in ModelManifest.metrics in lorcana-schemas.
+
+legality_rate_min: 1.0
+evaluator_auroc_min: 0.80
+held_out_nll_max: 4.5
+diversity_min: 0.6

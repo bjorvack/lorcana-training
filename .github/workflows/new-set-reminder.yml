@@ -1,0 +1,11 @@
+name: new-set-reminder
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+# TODO: open an issue if the pinned cards-vN has drifted from latest.
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo stub

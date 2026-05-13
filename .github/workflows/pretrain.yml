@@ -1,0 +1,9 @@
+name: pretrain
+on:
+  workflow_dispatch:
+# TODO: pretrain the card encoder, publish encoder-vN.
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo stub
