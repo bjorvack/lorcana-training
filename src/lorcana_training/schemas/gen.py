@@ -134,6 +134,24 @@ def regenerate() -> None:
             print(f"[schemas.gen] wrote {output.relative_to(REPO_ROOT)}")
 
     (GENERATED_DIR / ".generated_from").write_text(f"{repo}@{tag}\n", encoding="utf8")
+
+    # Normalise quote style + trailing commas through `ruff format`.
+    # Without this the drift check flakes across datamodel-codegen
+    # patch versions, which silently flip between single and double
+    # quotes depending on upstream's chosen `black` version of the
+    # week. ruff format is deterministic, so committing its output
+    # makes the drift check a real content diff rather than a
+    # cosmetic one.
+    format_result = subprocess.run(
+        ["ruff", "format", str(GENERATED_DIR)],
+        capture_output=True,
+        text=True,
+    )
+    if format_result.returncode != 0:
+        raise RuntimeError(
+            f"ruff format failed on generated dir:\n{format_result.stdout}\n{format_result.stderr}",
+        )
+
     print(f"[schemas.gen] ok, pinned to {repo}@{tag}")
 
 
