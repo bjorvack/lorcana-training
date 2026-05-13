@@ -36,6 +36,7 @@ from ..cards.vocab import Vocab
 from ..text import (
     PAD_TOKEN,
     collect_reserved_tokens,
+    normalise_card_text,
     train_tokeniser,
 )
 
@@ -65,8 +66,14 @@ def build_pretrain_tokeniser(
     out_path: Path,
     vocab_size: int = 32_000,
 ) -> Tokenizer:
-    """Train the BPE tokeniser over the pool of non-empty card texts."""
-    texts = [c.canonical.text for c in logical_cards.cards if c.canonical.text]
+    """Train the BPE tokeniser over the pool of non-empty card texts.
+
+    Card text is passed through :func:`normalise_card_text` first so
+    parenthesised keyword reminders never enter the training corpus —
+    see :mod:`lorcana_training.text.normalise` for why.
+    """
+    texts = [normalise_card_text(c.canonical.text) for c in logical_cards.cards if c.canonical.text]
+    texts = [t for t in texts if t]  # drop anything that became empty after stripping
     reserved = collect_reserved_tokens(logical_cards.cards)
     return train_tokeniser(
         texts,
@@ -124,7 +131,10 @@ def build_pretrain_dataset(
             "features tensor row count does not match vocab size "
             f"(features={features.shape[0]}, cards={len(logical_cards.cards)})"
         )
-    texts = [c.canonical.text or "" for c in logical_cards.cards]
+    # Strip reminder-text parens here too so training + inference see
+    # identical text (the encoder and the embedding export both read
+    # from this list).
+    texts = [normalise_card_text(c.canonical.text or "") for c in logical_cards.cards]
     train_idx, heldout_idx = split_indices(logical_cards, heldout_ratio=heldout_ratio)
     return PretrainData(
         vocab=vocab,
