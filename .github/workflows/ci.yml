@@ -21,7 +21,15 @@ jobs:
       # Guard against "bumped schemas_release_tag but forgot to re-run
       # codegen". `schemas.gen` is idempotent, so if it produces a
       # diff, CI refuses to merge.
+      #
+      # GITHUB_TOKEN is passed explicitly so the release tarball fetch
+      # goes through the authenticated rate-limit ceiling (~5 k/h)
+      # instead of the anonymous one (60/h). The runner already has
+      # the token in `secrets.GITHUB_TOKEN`, we just have to surface
+      # it into the process env.
       - name: Verify generated pydantic models are in sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           uv run python -m lorcana_training.schemas.gen
           git diff --exit-code src/lorcana_training/schemas/generated
