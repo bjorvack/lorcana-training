@@ -19,6 +19,7 @@ from .export import OnnxExportOptions, export_models as run_export_models
 from .tables import BuildTablesOptions, build_tables as run_build_tables
 from .proposal import ProposalOptions, TargetMode, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
+from .release.promote_model import promote_model_cmd
 
 
 @click.group()
@@ -183,6 +184,7 @@ def export_encoder_cmd(
 
 
 main.add_command(promote_encoder_cmd)
+main.add_command(promote_model_cmd)
 
 
 @main.command("train-proposal")
