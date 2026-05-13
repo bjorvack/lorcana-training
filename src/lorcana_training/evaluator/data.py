@@ -250,9 +250,7 @@ class NegativeSampler:
         if not buckets:
             return self._random_in_ink(deck_inks, exclude, rng)
         pool: torch.Tensor = (
-            buckets[0]
-            if len(buckets) == 1
-            else torch.cat(buckets).unique()  # type: ignore[no-untyped-call]
+            buckets[0] if len(buckets) == 1 else torch.cat(buckets).unique()  # type: ignore[no-untyped-call]
         )
         return self._sample_from_pool(pool, exclude, rng, fallback=self._pool_for_inks(deck_inks))
 

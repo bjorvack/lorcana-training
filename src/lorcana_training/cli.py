@@ -15,6 +15,7 @@ from .pretrain import (
     pretrain_encoder as run_pretrain,
 )
 from .evaluator import EvaluatorOptions, train_evaluator as run_train_evaluator
+from .export import OnnxExportOptions, export_models as run_export_models
 from .proposal import ProposalOptions, TargetMode, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
 
@@ -395,10 +396,73 @@ def evaluate() -> None:
     raise NotImplementedError
 
 
-@main.command()
-def export() -> None:
-    """Export trained models to ONNX + write the manifest."""
-    raise NotImplementedError
+@main.command("export")
+@click.option(
+    "--prepared",
+    "prepared_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "prepared",
+    show_default=True,
+)
+@click.option(
+    "--encoder-export",
+    "encoder_export_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "encoder-export",
+    show_default=True,
+)
+@click.option(
+    "--proposal",
+    "proposal_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "proposal",
+    show_default=True,
+)
+@click.option(
+    "--evaluator",
+    "evaluator_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "evaluator",
+    show_default=True,
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "model-export",
+    show_default=True,
+)
+@click.option(
+    "--embeddings-dtype",
+    type=click.Choice(["float16", "float32"]),
+    default="float16",
+    show_default=True,
+    help="Precision for the shipped card_embeddings.bin.",
+)
+def export_cmd(
+    prepared_dir: Path,
+    encoder_export_dir: Path,
+    proposal_dir: Path,
+    evaluator_dir: Path,
+    out_dir: Path,
+    embeddings_dtype: str,
+) -> None:
+    """Export trained proposal + evaluator to ONNX + card_embeddings.bin."""
+    opts = OnnxExportOptions(
+        prepared_dir=prepared_dir,
+        encoder_export_dir=encoder_export_dir,
+        proposal_dir=proposal_dir,
+        evaluator_dir=evaluator_dir,
+        out_dir=out_dir,
+        embeddings_dtype=embeddings_dtype,
+    )
+    result = run_export_models(opts)
+    click.echo(
+        f"export: wrote {result.proposal_path.name}, "
+        f"{result.evaluator_path.name}, "
+        f"{result.card_embeddings_path.name}. "
+        f"manifest at {result.manifest_path}"
+    )
 
 
 if __name__ == "__main__":
