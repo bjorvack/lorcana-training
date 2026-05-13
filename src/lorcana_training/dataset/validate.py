@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 from ..cards.logical import LogicalCardSet
 from ..cards.vocab import Vocab
@@ -73,7 +73,9 @@ def validate_dataset(
     total = 0
 
     for tournament in dataset.tournaments:
-        tdate = tournament.date  # datamodel-codegen gives us `date`
+        # The generated schema keeps tournament.date as the raw ISO string
+        # (regex-validated), so parse it into a real date here once.
+        tdate = datetime.strptime(tournament.date, "%Y-%m-%d").date()
         turl = str(tournament.source_url)
         tname = tournament.name
         for entry in tournament.decks:
