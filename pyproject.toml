@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.7",
     "torch>=2.4",
     "numpy>=1.26",
+    "safetensors>=0.4",
     "onnx>=1.16",
     "onnxruntime>=1.18",
     "datamodel-code-generator>=0.25",
