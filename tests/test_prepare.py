@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from lorcana_training.config import load_config
 from lorcana_training.prepare import PrepareOptions, prepare
@@ -154,8 +156,26 @@ def test_prepare_cache_hit_is_a_noop(tmp_path: Path) -> None:
     os.environ.get("RUN_NETWORK_TESTS") != "1", reason="set RUN_NETWORK_TESTS=1 to enable"
 )
 def test_prepare_live_pinned_artifacts(tmp_path: Path) -> None:
+    cfg = load_config()
     result = prepare(PrepareOptions(out_dir=tmp_path / "prepared"))
     assert result.manifest_path.exists()
     manifest = json.loads(result.manifest_path.read_text())
-    # Pinned tournaments-v0.3.0 has 6137 decks.
-    assert manifest["validation"]["totalDecks"] == 6137
+    assert manifest["sources"]["tournamentsReleaseTag"] == cfg.tournaments_release_tag
+
+    # Cross-check against the authoritative deck count published in the
+    # pinned release body (`Decks: **N**`), so the assertion tracks whatever
+    # `tournaments_release_tag` is pinned in config/training.yaml.
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    resp = requests.get(
+        f"https://api.github.com/repos/{cfg.scraper_repo}/releases/tags/"
+        f"{cfg.tournaments_release_tag}",
+        headers=headers,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    match = re.search(r"Decks:\s*\*\*(\d+)\*\*", resp.json().get("body") or "")
+    assert match, "could not find deck count in release body"
+    assert manifest["validation"]["totalDecks"] == int(match.group(1))
