@@ -1,29 +1,26 @@
 """Text normalisation used before tokenisation.
 
-The only transformation right now is stripping parenthesised
-*reminder text* from card bodies. In early Lorcana sets, every
-keyword printing repeats its rules in parens — e.g.
+Three transformations, applied in order by :func:`normalise_card_text`:
 
-    Shift 3 (You may pay 3 {I} to play this on top of one of your
-    characters named Elsa.) Rush (This character can challenge the
-    turn they're played.)
+1. **Reminder-text stripping.** Early Lorcana sets repeat the rules
+   of every keyword in parens — e.g. ``Shift 3 (You may pay 3 {I}
+   to play this on top of one of your characters named Elsa.)`` The
+   reminder is 100 % redundant with the keyword itself, inconsistent
+   across printings (some reprints drop or paraphrase it), and
+   dominates the training signal for keyword-heavy cards. Verified
+   manually across cards-v2026.05.13-01 that every parens span in
+   ``Card.text`` is reminder text; there are no legitimate
+   non-reminder parens in the rules-text field.
 
-The reminder text:
+2. **Smart-quote normalisation.** Different printings of the same
+   card sometimes drift between ``'`` and ``'`` / ``"`` and
+   ``"``. We collapse the curly forms to their ASCII equivalents so
+   two printings of *Dig a Little Deeper* encode to the same token
+   sequence.
 
-1. Is 100% redundant with the keyword itself — the keyword is the
-   authoritative name of the mechanic and already appears in the
-   card text.
-2. Dominates the training signal. A card with two keywords becomes
-   mostly reminder prose; the model ends up trying to *reproduce*
-   the reminders rather than learn what the keywords *do* from
-   their distribution across the pool.
-3. Is inconsistently present across printings — some reprints drop
-   the reminder, some keep it, some paraphrase it slightly.
-
-Stripping is a clean universal rule: every parens-wrapped segment in
-``Card.text`` in the current pool is reminder text (verified
-manually over cards-v2026.05.13-01). There are no legitimate
-non-reminder parens in the rules-text field.
+3. **Whitespace collapse.** A handful of cards carry stray double
+   spaces in their source ("{E}, 1 {I} —  Look at..."). We collapse
+   runs of whitespace to a single space and trim edges.
 
 Flavor text lives on a separate ``flavor`` field and is never fed
 to the encoder, so nothing there to worry about.
@@ -39,15 +36,30 @@ import re
 # regex is correct.
 _REMINDER_RE = re.compile(r"\s*\([^)]*\)")
 
-# Collapse whitespace after removing spans so we don't leave "Shift   Rush"
-# or trailing spaces behind.
+# Collapse whitespace runs so we don't leave double spaces in the source
+# or ugly trailing/leading space after stripping parens.
 _WHITESPACE_RE = re.compile(r"\s+")
+
+# Curly / smart quote to ASCII. Covers the four Unicode variants that
+# show up in the current pool; extend this map if future sets
+# introduce new ones (the existing unit tests will tell you).
+_QUOTE_MAP = str.maketrans(
+    {
+        "\u2018": "'",  # left single
+        "\u2019": "'",  # right single
+        "\u201c": '"',  # left double
+        "\u201d": '"',  # right double
+    }
+)
 
 
 def strip_reminder_text(text: str) -> str:
-    """Return ``text`` with parenthesised reminder text removed.
+    """Remove parenthesised reminder text.
 
-    Idempotent: running twice returns the same result as once.
+    Does *not* touch quotes or whitespace on its own beyond the
+    cleanup needed to avoid leaving gaps where parens used to be.
+    Separate entry point for callers that only want the reminders
+    gone.
     """
     if not text:
         return text
@@ -55,12 +67,21 @@ def strip_reminder_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", stripped).strip()
 
 
-def normalise_card_text(text: str) -> str:
-    """Entry point used everywhere we feed card text to the encoder.
+def normalise_quotes(text: str) -> str:
+    """Map curly quotes to their ASCII equivalents."""
+    return text.translate(_QUOTE_MAP)
 
-    Thin wrapper today (only strips reminders); kept as a stable
-    name so future normalisations — whitespace clean-up, smart-quote
-    canonicalisation, keyword-case normalisation — have one obvious
-    place to land.
+
+def normalise_whitespace(text: str) -> str:
+    """Collapse runs of whitespace to a single space and trim edges."""
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def normalise_card_text(text: str) -> str:
+    """The single entry point every card-text consumer should use.
+
+    Applies strip + quote-normalise + whitespace-collapse. Idempotent.
     """
-    return strip_reminder_text(text)
+    if not text:
+        return text
+    return normalise_whitespace(normalise_quotes(strip_reminder_text(text)))
