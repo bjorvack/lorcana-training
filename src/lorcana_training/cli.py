@@ -8,6 +8,7 @@ import click
 
 from .config import REPO_ROOT
 from .prepare import PrepareOptions, prepare as run_prepare
+from .pretrain import PretrainOptions, pretrain_encoder as run_pretrain
 
 
 @click.group()
@@ -76,10 +77,55 @@ def prepare(
         click.echo(f"prepare: built {result.content_hash}. wrote {result.manifest_path}")
 
 
-@main.command()
-def pretrain() -> None:
-    """Pretrain the card encoder."""
-    raise NotImplementedError
+@main.command("pretrain-encoder")
+@click.option(
+    "--prepared",
+    "prepared_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "prepared",
+    show_default=True,
+    help="Directory produced by `lorcana-train prepare`.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "encoder",
+    show_default=True,
+    help="Where to write the trained encoder + tokeniser + run logs.",
+)
+@click.option("--epochs", type=int, default=40, show_default=True)
+@click.option("--batch-size", type=int, default=32, show_default=True)
+@click.option("--learning-rate", type=float, default=3e-4, show_default=True)
+@click.option("--patience", type=int, default=5, show_default=True)
+@click.option("--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset.")
+@click.option("--seed", type=int, default=0, show_default=True)
+def pretrain_encoder_cmd(
+    prepared_dir: Path,
+    out_dir: Path,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    patience: int,
+    device: str | None,
+    seed: int,
+) -> None:
+    """Pretrain the card encoder (MLM on text + denoising AE on struct)."""
+    opts = PretrainOptions(
+        prepared_dir=prepared_dir,
+        out_dir=out_dir,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        patience=patience,
+        device=device,
+        seed=seed,
+    )
+    result = run_pretrain(opts)
+    click.echo(
+        f"pretrain-encoder: best epoch {result.best_epoch}, "
+        f"held-out total {result.best_heldout_total:.4f}. wrote {result.out_dir}"
+    )
 
 
 @main.command()
