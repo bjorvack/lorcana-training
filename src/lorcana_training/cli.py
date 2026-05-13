@@ -14,6 +14,7 @@ from .pretrain import (
     export_card_embeddings as run_export,
     pretrain_encoder as run_pretrain,
 )
+from .evaluator import EvaluatorOptions, train_evaluator as run_train_evaluator
 from .proposal import ProposalOptions, TargetMode, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
 
@@ -302,9 +303,89 @@ def train_proposal_cmd(
     )
 
 
+@main.command("train-evaluator")
+@click.option(
+    "--prepared",
+    "prepared_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "prepared",
+    show_default=True,
+    help="Directory produced by `lorcana-train prepare`.",
+)
+@click.option(
+    "--encoder-export",
+    "encoder_export_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "encoder-export",
+    show_default=True,
+    help="Directory produced by `lorcana-train export-encoder`.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "evaluator",
+    show_default=True,
+    help="Where to write the trained evaluator + run logs.",
+)
+@click.option("--warmup-epochs", type=int, default=5, show_default=True)
+@click.option("--curve-epochs", type=int, default=5, show_default=True)
+@click.option("--local-epochs", type=int, default=5, show_default=True)
+@click.option("--batch-size", type=int, default=64, show_default=True)
+@click.option("--learning-rate", type=float, default=3e-4, show_default=True)
+@click.option("--weight-decay", type=float, default=0.01, show_default=True)
+@click.option("--dropout", type=float, default=0.1, show_default=True)
+@click.option("--patience", type=int, default=5, show_default=True)
+@click.option("--samples-per-deck", type=int, default=12, show_default=True)
+@click.option(
+    "--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset."
+)
+@click.option("--seed", type=int, default=0, show_default=True)
+def train_evaluator_cmd(
+    prepared_dir: Path,
+    encoder_export_dir: Path,
+    out_dir: Path,
+    warmup_epochs: int,
+    curve_epochs: int,
+    local_epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    weight_decay: float,
+    dropout: float,
+    patience: int,
+    samples_per_deck: int,
+    device: str | None,
+    seed: int,
+) -> None:
+    """Train the per-step evaluator with the 3-phase curriculum."""
+    opts = EvaluatorOptions(
+        prepared_dir=prepared_dir,
+        encoder_export_dir=encoder_export_dir,
+        out_dir=out_dir,
+        warmup_epochs=warmup_epochs,
+        curve_epochs=curve_epochs,
+        local_epochs=local_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        dropout=dropout,
+        patience=patience,
+        samples_per_deck=samples_per_deck,
+        device=device,
+        seed=seed,
+    )
+    result = run_train_evaluator(opts)
+    click.echo(
+        f"train-evaluator: best epoch {result.best_epoch} ({result.best_phase}), "
+        f"held-out BCE {result.best_heldout_bce:.4f}, "
+        f"AUC {result.best_heldout_auc:.3f}. "
+        f"wrote {result.out_dir}"
+    )
+
+
 @main.command()
 def train() -> None:
-    """Train the per-step evaluator (and legacy alias for the combined stage)."""
+    """Legacy umbrella placeholder. Use `train-proposal` / `train-evaluator`."""
     raise NotImplementedError
 
 
