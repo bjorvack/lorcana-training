@@ -1,0 +1,4 @@
+/Users/bjorn.vanacker/Development/Private/lorcana-deckbuilder/lorcana-training/src/lorcana_training/models/card_encoder.py:112: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=cfg.n_layers)
+/Users/bjorn.vanacker/Development/Private/lorcana-deckbuilder/lorcana-training/.venv/lib/python3.12/site-packages/torch/_compile.py:54: UserWarning: optimizer contains a parameter group with duplicate parameters; in future, this will cause an error; see github.com/pytorch/pytorch/issues/40967 for more information
+  return disable_fn(*args, **kwargs)

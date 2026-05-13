@@ -292,7 +292,11 @@ def pretrain_encoder(opts: PretrainOptions | None = None) -> PretrainResult:
     encoder = CardEncoder(encoder_cfg).to(device)
     mlm_head = MlmHead(encoder).to(device)
     struct_head = StructReconstructionHead(encoder_cfg).to(device)
-    params = list(encoder.parameters()) + list(mlm_head.parameters()) + list(struct_head.parameters())
+    # MlmHead ties its decoder weight to encoder.text.token_emb, so a naive
+    # sum of .parameters() across the three modules duplicates that tensor.
+    # AdamW would then step it twice per iteration (effective 2x LR on the
+    # embedding). Dedup by tensor identity.
+    params = _unique_parameters(encoder, mlm_head, struct_head)
     optimiser = AdamW(params, lr=opts.learning_rate, weight_decay=opts.weight_decay)
     total_steps = max(1, opts.epochs * len(train_loader))
     warmup_steps = int(total_steps * opts.warmup_ratio)
@@ -342,7 +346,7 @@ def pretrain_encoder(opts: PretrainOptions | None = None) -> PretrainResult:
             )
             optimiser.zero_grad(set_to_none=True)
             losses.total.backward()
-            nn.utils.clip_grad_norm_(params, max_norm=1.0)
+            nn.utils.clip_grad_norm_(params, max_norm=1.0)  # type: ignore[arg-type]
             optimiser.step()
             scheduler.step()
             train_total += losses.total.item()
@@ -444,6 +448,24 @@ def pretrain_encoder(opts: PretrainOptions | None = None) -> PretrainResult:
         best_heldout_total=best_heldout,
         param_count=param_count,
     )
+
+
+def _unique_parameters(*modules: nn.Module) -> list[torch.Tensor]:
+    """Deduplicate tensors across multiple modules by ``id()``.
+
+    Required because weight-tying (e.g. MlmHead.decoder tying to the
+    encoder's token embedding) leaves the same tensor in both modules'
+    .parameters() iterables.
+    """
+    seen: set[int] = set()
+    out: list[torch.Tensor] = []
+    for module in modules:
+        for param in module.parameters():
+            if id(param) in seen:
+                continue
+            seen.add(id(param))
+            out.append(param)
+    return out
 
 
 def _serialise_options(manifest: dict) -> None:
