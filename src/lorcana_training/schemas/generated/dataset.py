@@ -12,25 +12,25 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, conint
 
 
 class Ink(StrEnum):
-    amber = 'Amber'
-    amethyst = 'Amethyst'
-    emerald = 'Emerald'
-    ruby = 'Ruby'
-    sapphire = 'Sapphire'
-    steel = 'Steel'
+    amber = "Amber"
+    amethyst = "Amethyst"
+    emerald = "Emerald"
+    ruby = "Ruby"
+    sapphire = "Sapphire"
+    steel = "Steel"
 
 
 class Card(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    card_id: constr(min_length=1) = Field(..., alias='cardId')
+    card_id: constr(min_length=1) = Field(..., alias="cardId")
     count: conint(ge=1)
 
 
 class Deck1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     inks: list[Ink] = Field(..., max_length=2, min_length=1)
     cards: list[Card] = Field(..., min_length=1)
@@ -40,7 +40,7 @@ class Deck1(BaseModel):
 
 class Deck(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     placement: conint(ge=1) | None
     player: str | None
@@ -49,25 +49,23 @@ class Deck(BaseModel):
 
 class Tournament(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    source_url: AnyUrl = Field(..., alias='sourceUrl')
-    source_name: constr(min_length=1) = Field(..., alias='sourceName')
+    source_url: AnyUrl = Field(..., alias="sourceUrl")
+    source_name: constr(min_length=1) = Field(..., alias="sourceName")
     name: constr(min_length=1)
-    date: constr(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: constr(pattern=r"^\d{4}-\d{2}-\d{2}$")
     decks: list[Deck] = Field(..., min_length=1)
 
 
 class Dataset(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    dataset_version: constr(pattern=r'^\d+\.\d+\.\d+$') = Field(
-        ..., alias='datasetVersion'
-    )
-    schema_version: constr(min_length=1) = Field(..., alias='schemaVersion')
-    card_set_version: constr(min_length=1) = Field(..., alias='cardSetVersion')
-    cards_release_tag: constr(min_length=1) = Field(..., alias='cardsReleaseTag')
-    generated_at: AwareDatetime = Field(..., alias='generatedAt')
+    dataset_version: constr(pattern=r"^\d+\.\d+\.\d+$") = Field(..., alias="datasetVersion")
+    schema_version: constr(min_length=1) = Field(..., alias="schemaVersion")
+    card_set_version: constr(min_length=1) = Field(..., alias="cardSetVersion")
+    cards_release_tag: constr(min_length=1) = Field(..., alias="cardsReleaseTag")
+    generated_at: AwareDatetime = Field(..., alias="generatedAt")
     sources: list[constr(min_length=1)] = Field(..., min_length=1)
     tournaments: list[Tournament]

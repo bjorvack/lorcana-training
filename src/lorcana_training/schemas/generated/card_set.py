@@ -12,37 +12,37 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, conint
 
 
 class Ink(StrEnum):
-    amber = 'Amber'
-    amethyst = 'Amethyst'
-    emerald = 'Emerald'
-    ruby = 'Ruby'
-    sapphire = 'Sapphire'
-    steel = 'Steel'
+    amber = "Amber"
+    amethyst = "Amethyst"
+    emerald = "Emerald"
+    ruby = "Ruby"
+    sapphire = "Sapphire"
+    steel = "Steel"
 
 
 class Type(StrEnum):
-    character = 'Character'
-    action = 'Action'
-    song = 'Song'
-    item = 'Item'
-    location = 'Location'
+    character = "Character"
+    action = "Action"
+    song = "Song"
+    item = "Item"
+    location = "Location"
 
 
 class Legality(StrEnum):
-    legal = 'legal'
-    not_legal = 'not_legal'
-    banned = 'banned'
+    legal = "legal"
+    not_legal = "not_legal"
+    banned = "banned"
 
 
 class Card(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id: constr(min_length=1)
     name: constr(min_length=1)
     version: constr(min_length=1) | None
-    set_code: constr(min_length=1) = Field(..., alias='setCode')
-    card_number: conint(ge=0) = Field(..., alias='cardNumber')
+    set_code: constr(min_length=1) = Field(..., alias="setCode")
+    card_number: conint(ge=0) = Field(..., alias="cardNumber")
     cost: conint(ge=0, le=20)
     inkwell: bool
     inks: list[Ink] = Field(..., max_length=2, min_length=1)
@@ -51,18 +51,18 @@ class Card(BaseModel):
     keywords: list[str]
     text: str
     flavor: str | None
-    image_url: AnyUrl = Field(..., alias='imageUrl')
+    image_url: AnyUrl = Field(..., alias="imageUrl")
     legality: Legality
     lore: conint(ge=0) | None
     strength: conint(ge=0) | None
     willpower: conint(ge=0) | None
-    move_cost: conint(ge=0) | None = Field(..., alias='moveCost')
+    move_cost: conint(ge=0) | None = Field(..., alias="moveCost")
 
 
 class CardSet(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    card_set_version: constr(min_length=1) = Field(..., alias='cardSetVersion')
-    fetched_at: AwareDatetime = Field(..., alias='fetchedAt')
+    card_set_version: constr(min_length=1) = Field(..., alias="cardSetVersion")
+    fetched_at: AwareDatetime = Field(..., alias="fetchedAt")
     cards: list[Card]

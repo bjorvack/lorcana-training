@@ -117,10 +117,9 @@ def test_deterministic_seed_reproduces_split() -> None:
     assert [d.placement for d in a.heldout] == [d.placement for d in b.heldout]
     # A different seed shuffles differently.
     c = build_splits(ds, heldout_ratio=0.10, seed=8)
-    assert (
-        [d.placement for d in a.heldout] != [d.placement for d in c.heldout]
-        or len(a.heldout) != len(c.heldout)
-    )
+    assert [d.placement for d in a.heldout] != [d.placement for d in c.heldout] or len(
+        a.heldout
+    ) != len(c.heldout)
 
 
 def test_write_splits_round_trips(tmp_path: Path) -> None:

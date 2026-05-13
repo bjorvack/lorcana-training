@@ -216,7 +216,9 @@ def promote_encoder(args: PromoteOptions) -> PromoteResult:
 @click.option("--prerelease/--no-prerelease", default=True, show_default=True)
 @click.option("--dry-run", is_flag=True, help="Stage + verify; skip gh release create.")
 @click.option("--title", default=None, help="Override the GitHub release title.")
-@click.option("--note", "extra_note", default=None, help="Extra line above the auto-generated body.")
+@click.option(
+    "--note", "extra_note", default=None, help="Extra line above the auto-generated body."
+)
 def promote_encoder_cmd(
     from_dir: Path,
     out_dir: Path | None,

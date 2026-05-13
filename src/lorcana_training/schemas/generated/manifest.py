@@ -11,34 +11,34 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, confloat, cons
 
 class Safe(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     alpha: float
     gamma: float
-    lambda_: float = Field(..., alias='lambda')
+    lambda_: float = Field(..., alias="lambda")
 
 
 class Balanced(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     alpha: float
     gamma: float
-    lambda_: float = Field(..., alias='lambda')
+    lambda_: float = Field(..., alias="lambda")
 
 
 class Brew(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     alpha: float
     gamma: float
-    lambda_: float = Field(..., alias='lambda')
+    lambda_: float = Field(..., alias="lambda")
 
 
 class StylePresets(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     safe: Safe
     balanced: Balanced
@@ -48,7 +48,7 @@ class StylePresets(BaseModel):
 
 class PerStyle(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     safe: dict[str, float]
     balanced: dict[str, float]
@@ -57,26 +57,26 @@ class PerStyle(BaseModel):
 
 class Metrics(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
-    legality_rate: confloat(ge=0.0, le=1.0) = Field(..., alias='legalityRate')
-    evaluator_auroc: confloat(ge=0.0, le=1.0) = Field(..., alias='evaluatorAuroc')
-    evaluator_ece: float | None = Field(..., alias='evaluatorEce')
+    legality_rate: confloat(ge=0.0, le=1.0) = Field(..., alias="legalityRate")
+    evaluator_auroc: confloat(ge=0.0, le=1.0) = Field(..., alias="evaluatorAuroc")
+    evaluator_ece: float | None = Field(..., alias="evaluatorEce")
     per_style: PerStyle
 
 
 class Manifest(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    model_version: constr(pattern=r'^\d+\.\d+\.\d+$') = Field(..., alias='modelVersion')
-    schema_version: constr(min_length=1) = Field(..., alias='schemaVersion')
-    vocab_hash: constr(pattern=r'^sha256:[0-9a-f]{64}$') = Field(..., alias='vocabHash')
-    card_set_version: constr(min_length=1) = Field(..., alias='cardSetVersion')
-    cards_release_tag: constr(min_length=1) = Field(..., alias='cardsReleaseTag')
-    dataset_release_tag: constr(min_length=1) = Field(..., alias='datasetReleaseTag')
-    encoder_release_tag: constr(min_length=1) = Field(..., alias='encoderReleaseTag')
-    trained_at: AwareDatetime = Field(..., alias='trainedAt')
+    model_version: constr(pattern=r"^\d+\.\d+\.\d+$") = Field(..., alias="modelVersion")
+    schema_version: constr(min_length=1) = Field(..., alias="schemaVersion")
+    vocab_hash: constr(pattern=r"^sha256:[0-9a-f]{64}$") = Field(..., alias="vocabHash")
+    card_set_version: constr(min_length=1) = Field(..., alias="cardSetVersion")
+    cards_release_tag: constr(min_length=1) = Field(..., alias="cardsReleaseTag")
+    dataset_release_tag: constr(min_length=1) = Field(..., alias="datasetReleaseTag")
+    encoder_release_tag: constr(min_length=1) = Field(..., alias="encoderReleaseTag")
+    trained_at: AwareDatetime = Field(..., alias="trainedAt")
     architecture: constr(min_length=1)
     style_presets: StylePresets
     metrics: Metrics

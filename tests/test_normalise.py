@@ -80,8 +80,5 @@ def test_normalise_card_text_handles_smart_quotes_and_double_spaces() -> None:
 def test_normalise_card_text_composes_all_steps() -> None:
     # A stacked keyword card that mixes every pattern we normalise:
     # curly quote, reminder parens, and a double space.
-    raw = (
-        "Shift 3 (You may pay 3 {I}.) \u2018Rush\u2019  means  the character "
-        "can challenge."
-    )
+    raw = "Shift 3 (You may pay 3 {I}.) \u2018Rush\u2019  means  the character can challenge."
     assert normalise_card_text(raw) == "Shift 3 'Rush' means the character can challenge."

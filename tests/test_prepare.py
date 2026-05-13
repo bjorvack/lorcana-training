@@ -46,10 +46,7 @@ def _card(id_: str, name: str, **overrides: object) -> dict:
 
 
 def _fake_inputs() -> tuple[CardSet, Dataset]:
-    cards = [
-        _card(f"crd_{chr(ord('a') + i)}", f"Card{i}", cardNumber=i + 1)
-        for i in range(15)
-    ]
+    cards = [_card(f"crd_{chr(ord('a') + i)}", f"Card{i}", cardNumber=i + 1) for i in range(15)]
     cs = CardSet.model_validate(
         {
             "cardSetVersion": "sha256:fake",

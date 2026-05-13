@@ -100,7 +100,9 @@ def _run_codegen(schema_path: Path, output: Path, class_name: str) -> None:
 
 def _prepend_header(path: Path, tag: str) -> None:
     original = path.read_text(encoding="utf8")
-    path.write_text(f"{_HEADER}# Generated from lorcana-schemas@{tag}.\n\n{original}", encoding="utf8")
+    path.write_text(
+        f"{_HEADER}# Generated from lorcana-schemas@{tag}.\n\n{original}", encoding="utf8"
+    )
 
 
 def regenerate() -> None:

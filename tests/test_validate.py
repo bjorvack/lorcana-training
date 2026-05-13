@@ -204,7 +204,9 @@ def test_validate_flags_max_copies_violation_after_collapse() -> None:
         *(_card(f"crd_{chr(ord('a') + i)}", f"Filler{i}") for i in range(14)),
     )
     # 4x base + 4x enchanted = 8 copies of one logical Mickey, rest filler to 60.
-    cards = [("crd_base", 4), ("crd_ench", 4)] + [(f"crd_{chr(ord('a') + i)}", 4) for i in range(13)]
+    cards = [("crd_base", 4), ("crd_ench", 4)] + [
+        (f"crd_{chr(ord('a') + i)}", 4) for i in range(13)
+    ]
     ds = _dataset(_deck(cards))
     logical = build_logical_cards(cs)
     vocab = build_vocab(logical)

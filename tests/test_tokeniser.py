@@ -88,7 +88,9 @@ def test_empty_corpus_is_rejected(tmp_path: Path) -> None:
         train_tokeniser([], out_path=tmp_path / "tok.json")
 
 
-def _card(name: str, *, classifications: tuple[str, ...] = (), keywords: tuple[str, ...] = ()) -> dict:
+def _card(
+    name: str, *, classifications: tuple[str, ...] = (), keywords: tuple[str, ...] = ()
+) -> dict:
     return {
         "id": f"crd_{name.lower().replace(' ', '_')}",
         "name": name,
@@ -152,7 +154,8 @@ def test_stat_modifiers_are_atomic_in_card_text(tmp_path: Path) -> None:
     logical = build_logical_cards(cs)
     reserved = collect_reserved_tokens(logical.cards)
     tok = train_tokeniser(
-        _SAMPLE_TEXTS + [
+        _SAMPLE_TEXTS
+        + [
             "Resist +1 (Damage dealt to them is reduced by 1.)",
             "Resist +2. Challenger +2.",
         ],
@@ -203,7 +206,9 @@ def test_reserved_tokens_kept_atomic_inside_real_card_text(tmp_path: Path) -> No
     )
     elsa_id = tok.token_to_id("Elsa")
     ink_id = tok.token_to_id("{I}")
-    enc = tok.encode("Shift 4 (You may pay 4 {I} to play this on top of one of your characters named Elsa.)")
+    enc = tok.encode(
+        "Shift 4 (You may pay 4 {I} to play this on top of one of your characters named Elsa.)"
+    )
     assert elsa_id in enc.ids
     assert ink_id in enc.ids
     # And each appears only once — not doubly-emitted from a fallback path.

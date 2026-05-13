@@ -115,7 +115,10 @@ def mask_structured_blocks(
     blocks: list[tuple[str, list[int]]] = [
         ("cost", list(range(schema.cost_slice[0], schema.cost_slice[0] + schema.cost_slice[1]))),
         ("inks", list(range(schema.inks_slice[0], schema.inks_slice[0] + schema.inks_slice[1]))),
-        ("types", list(range(schema.types_slice[0], schema.types_slice[0] + schema.types_slice[1]))),
+        (
+            "types",
+            list(range(schema.types_slice[0], schema.types_slice[0] + schema.types_slice[1])),
+        ),
         (
             "classifications",
             list(
@@ -127,7 +130,9 @@ def mask_structured_blocks(
         ),
         (
             "keywords",
-            list(range(schema.keywords_slice[0], schema.keywords_slice[0] + schema.keywords_slice[1])),
+            list(
+                range(schema.keywords_slice[0], schema.keywords_slice[0] + schema.keywords_slice[1])
+            ),
         ),
         (
             "scalars",

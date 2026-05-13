@@ -189,7 +189,9 @@ def export_card_embeddings(
     save_numpy_file({"card_embeddings": embeddings}, str(embeddings_path))
 
     weights_path = opts.out_dir / "encoder_weights.safetensors"
-    save_torch_file({k: v.detach().cpu() for k, v in encoder.state_dict().items()}, str(weights_path))
+    save_torch_file(
+        {k: v.detach().cpu() for k, v in encoder.state_dict().items()}, str(weights_path)
+    )
 
     out_tokeniser_path = opts.out_dir / "tokeniser.json"
     shutil.copyfile(tokeniser_path, out_tokeniser_path)
@@ -228,9 +230,7 @@ def export_card_embeddings(
             "cardsReleaseTag": cfg.cards_release_tag,
             "cardSetVersion": card_set.card_set_version,
             "cardsRepo": cfg.scraper_repo,
-            "prepareContentHash": pretrain_manifest.get("sources", {}).get(
-                "prepareContentHash"
-            ),
+            "prepareContentHash": pretrain_manifest.get("sources", {}).get("prepareContentHash"),
             "pretrainBestEpoch": pretrain_manifest.get("bestEpoch"),
             "pretrainBestHeldoutTotal": pretrain_manifest.get("bestHeldoutTotal"),
         },

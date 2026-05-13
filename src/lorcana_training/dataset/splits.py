@@ -108,7 +108,9 @@ def build_splits(
     # we don't need crypto randomness, we just need reruns of the same
     # (config, validated dataset) to emit the same split.
     rng = random.Random(seed)
-    strata: dict[tuple[tuple[str, ...], tuple[int, int]], list[ValidLogicalDeck]] = defaultdict(list)
+    strata: dict[tuple[tuple[str, ...], tuple[int, int]], list[ValidLogicalDeck]] = defaultdict(
+        list
+    )
     for deck in validated.decks:
         strata[_stratum_key(deck)].append(deck)
 
@@ -191,8 +193,12 @@ def write_splits(splits: Splits, *, out_dir: Path) -> dict[str, Path]:
                 "trainProposal": r.train_proposal,
                 "trainEvaluator": r.train_evaluator,
                 "heldout": r.heldout,
-                "proposalCutoffDate": r.proposal_cutoff_date.isoformat() if r.proposal_cutoff_date else None,
-                "referenceDate": r.reference_date.isoformat() if r.reference_date != date.min else None,
+                "proposalCutoffDate": r.proposal_cutoff_date.isoformat()
+                if r.proposal_cutoff_date
+                else None,
+                "referenceDate": r.reference_date.isoformat()
+                if r.reference_date != date.min
+                else None,
                 "heldoutRatio": r.heldout_ratio,
                 "strataCount": r.strata_count,
                 "singletonStrata": r.singleton_strata,

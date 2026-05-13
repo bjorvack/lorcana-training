@@ -180,9 +180,7 @@ def test_export_rejects_tokeniser_vocab_mismatch(tmp_path: Path) -> None:
     # the saved tokeniser.json — the precise failure mode the guard
     # exists to catch ("someone retrained the tokeniser after the
     # encoder was checkpointed").
-    ckpt = torch.load(
-        checkpoint_dir / "encoder.pt", map_location="cpu", weights_only=False
-    )
+    ckpt = torch.load(checkpoint_dir / "encoder.pt", map_location="cpu", weights_only=False)
     ckpt["encoder_config"]["vocab_size"] = ckpt["encoder_config"]["vocab_size"] + 1
     torch.save(ckpt, checkpoint_dir / "encoder.pt")
 
@@ -194,9 +192,7 @@ def test_export_rejects_tokeniser_vocab_mismatch(tmp_path: Path) -> None:
         pytest.raises(ValueError, match="tokeniser vocab_size"),
     ):
         export_card_embeddings(
-            ExportOptions(
-                checkpoint_dir=checkpoint_dir, out_dir=tmp_path / "export", device="cpu"
-            )
+            ExportOptions(checkpoint_dir=checkpoint_dir, out_dir=tmp_path / "export", device="cpu")
         )
 
 

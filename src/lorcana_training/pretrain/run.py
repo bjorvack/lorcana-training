@@ -126,7 +126,9 @@ def _cosine_with_warmup(optimiser: AdamW, total_steps: int, warmup_steps: int) -
     return LambdaLR(optimiser, lr_lambda=lr_at)
 
 
-def _build_encoder_config(opts: PretrainOptions, vocab_size: int, struct_dim: int) -> CardEncoderConfig:
+def _build_encoder_config(
+    opts: PretrainOptions, vocab_size: int, struct_dim: int
+) -> CardEncoderConfig:
     return CardEncoderConfig(
         vocab_size=vocab_size,
         pad_token_id=0,  # text.tokeniser guarantees [PAD] = 0
@@ -268,7 +270,9 @@ def pretrain_encoder(opts: PretrainOptions | None = None) -> PretrainResult:
         tokeniser=tokeniser,
         heldout_ratio=opts.heldout_ratio,
     )
-    train_ds = CardPretrainDataset(data, indices=data.train_indices, max_positions=opts.max_positions)
+    train_ds = CardPretrainDataset(
+        data, indices=data.train_indices, max_positions=opts.max_positions
+    )
     heldout_ds = CardPretrainDataset(
         data, indices=data.heldout_indices, max_positions=opts.max_positions
     )
@@ -407,7 +411,9 @@ def pretrain_encoder(opts: PretrainOptions | None = None) -> PretrainResult:
         )
 
         if epochs_since_improvement >= opts.patience:
-            print(f"[pretrain] early stop after {epoch} epochs (no improvement for {opts.patience})")
+            print(
+                f"[pretrain] early stop after {epoch} epochs (no improvement for {opts.patience})"
+            )
             break
 
     # --- Manifest. ---

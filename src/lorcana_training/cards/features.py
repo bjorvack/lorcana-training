@@ -114,7 +114,9 @@ class FeatureSchema:
         }
 
 
-def _discover_classes(logical_cards: tuple[LogicalCard, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _discover_classes(
+    logical_cards: tuple[LogicalCard, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Collect the classifications + keywords that actually appear."""
     classes: set[str] = set()
     kws: set[str] = set()
@@ -199,7 +201,9 @@ def build_feature_schema(logical_cards: tuple[LogicalCard, ...]) -> FeatureSchem
     )
 
 
-def _encode_card(card: Card, schema: FeatureSchema, *, class_idx: dict[str, int], keyword_idx: dict[str, int]) -> np.ndarray:
+def _encode_card(
+    card: Card, schema: FeatureSchema, *, class_idx: dict[str, int], keyword_idx: dict[str, int]
+) -> np.ndarray:
     row = np.zeros(schema.dim, dtype=np.float32)
     # Cost one-hot (clipped).
     cost_bin = min(max(card.cost, 0), schema.max_cost_bucket - 1)
@@ -247,7 +251,9 @@ def build_features(vocab: Vocab, schema: FeatureSchema) -> np.ndarray:
     return out
 
 
-def write_features(features: np.ndarray, schema: FeatureSchema, *, out_dir: Path) -> dict[str, Path]:
+def write_features(
+    features: np.ndarray, schema: FeatureSchema, *, out_dir: Path
+) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     feat_path = out_dir / "card_features.safetensors"
     save_file({"card_features": features}, str(feat_path))

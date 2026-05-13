@@ -12,25 +12,25 @@ from pydantic import AnyUrl, BaseModel, ConfigDict, Field, conint, constr
 
 
 class Ink(StrEnum):
-    amber = 'Amber'
-    amethyst = 'Amethyst'
-    emerald = 'Emerald'
-    ruby = 'Ruby'
-    sapphire = 'Sapphire'
-    steel = 'Steel'
+    amber = "Amber"
+    amethyst = "Amethyst"
+    emerald = "Emerald"
+    ruby = "Ruby"
+    sapphire = "Sapphire"
+    steel = "Steel"
 
 
 class Card(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    card_id: constr(min_length=1) = Field(..., alias='cardId')
+    card_id: constr(min_length=1) = Field(..., alias="cardId")
     count: conint(ge=1)
 
 
 class Deck1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     inks: list[Ink] = Field(..., max_length=2, min_length=1)
     cards: list[Card] = Field(..., min_length=1)
@@ -40,7 +40,7 @@ class Deck1(BaseModel):
 
 class Deck(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     placement: conint(ge=1) | None
     player: str | None
@@ -49,10 +49,10 @@ class Deck(BaseModel):
 
 class Tournament(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    source_url: AnyUrl = Field(..., alias='sourceUrl')
-    source_name: constr(min_length=1) = Field(..., alias='sourceName')
+    source_url: AnyUrl = Field(..., alias="sourceUrl")
+    source_name: constr(min_length=1) = Field(..., alias="sourceName")
     name: constr(min_length=1)
-    date: constr(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: constr(pattern=r"^\d{4}-\d{2}-\d{2}$")
     decks: list[Deck] = Field(..., min_length=1)

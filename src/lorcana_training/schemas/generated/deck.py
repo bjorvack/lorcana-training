@@ -12,25 +12,25 @@ from pydantic import BaseModel, ConfigDict, Field, conint, constr
 
 
 class Ink(StrEnum):
-    amber = 'Amber'
-    amethyst = 'Amethyst'
-    emerald = 'Emerald'
-    ruby = 'Ruby'
-    sapphire = 'Sapphire'
-    steel = 'Steel'
+    amber = "Amber"
+    amethyst = "Amethyst"
+    emerald = "Emerald"
+    ruby = "Ruby"
+    sapphire = "Sapphire"
+    steel = "Steel"
 
 
 class Card(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    card_id: constr(min_length=1) = Field(..., alias='cardId')
+    card_id: constr(min_length=1) = Field(..., alias="cardId")
     count: conint(ge=1)
 
 
 class Deck(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     inks: list[Ink] = Field(..., max_length=2, min_length=1)
     cards: list[Card] = Field(..., min_length=1)

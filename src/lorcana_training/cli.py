@@ -14,6 +14,7 @@ from .pretrain import (
     export_card_embeddings as run_export,
     pretrain_encoder as run_pretrain,
 )
+from .proposal import ProposalOptions, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
 
 
@@ -104,7 +105,9 @@ def prepare(
 @click.option("--batch-size", type=int, default=32, show_default=True)
 @click.option("--learning-rate", type=float, default=3e-4, show_default=True)
 @click.option("--patience", type=int, default=5, show_default=True)
-@click.option("--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset.")
+@click.option(
+    "--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset."
+)
 @click.option("--seed", type=int, default=0, show_default=True)
 def pretrain_encoder_cmd(
     prepared_dir: Path,
@@ -152,7 +155,9 @@ def pretrain_encoder_cmd(
     help="Where to write the export bundle (encoder-manifest.json + artifacts).",
 )
 @click.option("--batch-size", type=int, default=64, show_default=True)
-@click.option("--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset.")
+@click.option(
+    "--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset."
+)
 def export_encoder_cmd(
     checkpoint_dir: Path,
     out_dir: Path,
@@ -177,9 +182,93 @@ def export_encoder_cmd(
 main.add_command(promote_encoder_cmd)
 
 
+@main.command("train-proposal")
+@click.option(
+    "--prepared",
+    "prepared_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "prepared",
+    show_default=True,
+    help="Directory produced by `lorcana-train prepare`.",
+)
+@click.option(
+    "--encoder-export",
+    "encoder_export_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "encoder-export",
+    show_default=True,
+    help="Directory produced by `lorcana-train export-encoder` (needs card_embeddings.fp32.safetensors).",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "proposal",
+    show_default=True,
+    help="Where to write the trained proposal net + run logs.",
+)
+@click.option("--epochs", type=int, default=30, show_default=True)
+@click.option("--batch-size", type=int, default=32, show_default=True)
+@click.option("--learning-rate", type=float, default=3e-4, show_default=True)
+@click.option("--patience", type=int, default=5, show_default=True)
+@click.option(
+    "--samples-per-deck",
+    type=int,
+    default=12,
+    show_default=True,
+    help="Number of masked examples to draw per deck per epoch (DESIGN.md k_pos).",
+)
+@click.option(
+    "--entropy-beta",
+    type=float,
+    default=0.05,
+    show_default=True,
+    help="Weight of the -β·H(pred) entropy bonus in the loss.",
+)
+@click.option(
+    "--device", type=str, default=None, help="cuda / mps / cpu; auto-detected when unset."
+)
+@click.option("--seed", type=int, default=0, show_default=True)
+def train_proposal_cmd(
+    prepared_dir: Path,
+    encoder_export_dir: Path,
+    out_dir: Path,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    patience: int,
+    samples_per_deck: int,
+    entropy_beta: float,
+    device: str | None,
+    seed: int,
+) -> None:
+    """Train the proposal net on recency-filtered tournament decks."""
+    opts = ProposalOptions(
+        prepared_dir=prepared_dir,
+        encoder_export_dir=encoder_export_dir,
+        out_dir=out_dir,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        patience=patience,
+        samples_per_deck=samples_per_deck,
+        entropy_beta=entropy_beta,
+        device=device,
+        seed=seed,
+    )
+    result = run_train_proposal(opts)
+    click.echo(
+        f"train-proposal: best epoch {result.best_epoch}, "
+        f"held-out total {result.best_heldout_total:.4f}, "
+        f"CE {result.best_heldout_ce:.4f}, "
+        f"H {result.best_heldout_entropy:.2f}. "
+        f"wrote {result.out_dir}"
+    )
+
+
 @main.command()
 def train() -> None:
-    """Train the proposal net and per-step evaluator."""
+    """Train the per-step evaluator (and legacy alias for the combined stage)."""
     raise NotImplementedError
 
 

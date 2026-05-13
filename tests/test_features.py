@@ -73,9 +73,7 @@ def _cs(*cards: dict) -> CardSet:
 
 def test_schema_slices_are_disjoint_and_cover_dim() -> None:
     cs = _cs(
-        _card(
-            "crd_a", "A", keywords=("Shift", "Rush"), classifications=("Hero", "Storyborn")
-        ),
+        _card("crd_a", "A", keywords=("Shift", "Rush"), classifications=("Hero", "Storyborn")),
         _card("crd_b", "B", keywords=("Shift",), classifications=("Villain",)),
     )
     schema = build_feature_schema(build_logical_cards(cs).cards)

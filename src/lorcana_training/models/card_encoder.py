@@ -129,7 +129,9 @@ class TextEncoder(nn.Module):
             raise ValueError(
                 f"seq_len={seq_len} exceeds configured max_positions={self.cfg.max_positions}"
             )
-        positions = torch.arange(seq_len, device=token_ids.device).unsqueeze(0).expand(batch_size, -1)
+        positions = (
+            torch.arange(seq_len, device=token_ids.device).unsqueeze(0).expand(batch_size, -1)
+        )
         x = self.token_emb(token_ids) + self.pos_emb(positions)
         padding_mask = token_ids == self.cfg.pad_token_id
         hidden = self.transformer(x, src_key_padding_mask=padding_mask)
