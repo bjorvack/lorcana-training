@@ -23,6 +23,7 @@ from lorcana_training.proposal.data import (
     INK_ORDER,
     Deck,
     ProposalDataset,
+    TargetMode,
     collate_proposal,
     ink_multihot,
     load_decks_jsonl,
@@ -71,9 +72,12 @@ def test_target_distribution_normalises_and_zeros_unseen() -> None:
 def test_sample_partial_removes_exactly_one_copy() -> None:
     deck = _deck([(5, 4), (7, 4), (11, 2)], ["amber", "ruby"])
     rng = random.Random(0)
-    partial = sample_partial(deck, rng)
+    partial, removed = sample_partial(deck, rng)
     assert len(partial) == deck.total_copies - 1
     assert 0 not in partial  # never PAD
+    # The removed id must itself be non-PAD and present in the original deck.
+    assert removed != 0
+    assert removed in {idx for idx, _ in deck.cards}
 
 
 def test_sample_partial_is_multiplicity_weighted() -> None:
@@ -84,9 +88,8 @@ def test_sample_partial_is_multiplicity_weighted() -> None:
     removed_from_5 = 0
     n_trials = 2000
     for _ in range(n_trials):
-        partial = sample_partial(deck, rng)
-        # If we see 3 fives, one was removed; otherwise it was the 11.
-        if partial.count(5) == 3:
+        _, removed = sample_partial(deck, rng)
+        if removed == 5:
             removed_from_5 += 1
     # Expected fraction: 4/5 = 0.8. Allow a generous 3σ-ish tolerance
     # (binomial stddev for n=2000, p=0.8 is ~18, so ±0.03 on the
@@ -193,6 +196,53 @@ def test_proposal_dataset_is_deterministic_with_seed() -> None:
     ds_b = ProposalDataset(decks, vocab_size=20, samples_per_deck=3, seed=7)
     for i in range(3):
         assert torch.equal(ds_a[i].partial_ids, ds_b[i].partial_ids)
+
+
+def test_proposal_dataset_one_hot_target_mode_peaks_on_removed_card() -> None:
+    """ONE_HOT_REMOVED puts all mass on exactly the removed card id."""
+    decks = [
+        _deck(
+            [
+                (1, 4),
+                (2, 4),
+                (3, 4),
+                (4, 4),
+                (5, 4),
+                (6, 4),
+                (7, 4),
+                (8, 4),
+                (9, 4),
+                (10, 4),
+                (11, 4),
+                (12, 4),
+                (13, 4),
+                (14, 4),
+                (15, 4),
+            ],
+            ["amber", "ruby"],
+        ),
+    ]
+    ds = ProposalDataset(
+        decks,
+        vocab_size=20,
+        samples_per_deck=5,
+        target_mode=TargetMode.ONE_HOT_REMOVED,
+        seed=42,
+    )
+    for i in range(5):
+        sample = ds[i]
+        target = sample.target_distribution
+        # Exactly one non-zero, and its value is 1.
+        assert target.sum().item() == pytest.approx(1.0)
+        assert int((target > 0).sum().item()) == 1
+        peaked_on = int(target.argmax().item())
+        # The peaked-on card must be *one of* the deck's cards, and
+        # specifically one that does NOT appear in the partial N times
+        # that would match its original count (i.e. it's the card
+        # that just lost a copy).
+        original_count = {idx: c for idx, c in decks[0].cards}[peaked_on]
+        partial_count = int((sample.partial_ids == peaked_on).sum().item())
+        assert partial_count == original_count - 1
 
 
 def test_collate_right_pads_with_zero() -> None:

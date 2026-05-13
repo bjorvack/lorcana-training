@@ -14,7 +14,7 @@ from .pretrain import (
     export_card_embeddings as run_export,
     pretrain_encoder as run_pretrain,
 )
-from .proposal import ProposalOptions, train_proposal as run_train_proposal
+from .proposal import ProposalOptions, TargetMode, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
 
 
@@ -207,9 +207,31 @@ main.add_command(promote_encoder_cmd)
     show_default=True,
     help="Where to write the trained proposal net + run logs.",
 )
+@click.option(
+    "--train-split",
+    type=str,
+    default="train.evaluator.jsonl",
+    show_default=True,
+    help="Prepare-output JSONL to train on. Defaults to the wider set "
+    "(no 12-month filter) because the recency-filtered split produced "
+    "severe overfitting on tournaments-v0.3.0; see ProposalOptions "
+    "docstring for the full sweep result.",
+)
+@click.option(
+    "--target-mode",
+    type=click.Choice([m.value for m in TargetMode]),
+    default=TargetMode.FULL_DECK.value,
+    show_default=True,
+    help="Target distribution style. 'one_hot_removed' is per-mask regularisation.",
+)
 @click.option("--epochs", type=int, default=30, show_default=True)
 @click.option("--batch-size", type=int, default=32, show_default=True)
 @click.option("--learning-rate", type=float, default=3e-4, show_default=True)
+@click.option("--weight-decay", type=float, default=0.01, show_default=True)
+@click.option("--dropout", type=float, default=0.1, show_default=True)
+@click.option("--d-model", type=int, default=256, show_default=True)
+@click.option("--n-layers", type=int, default=6, show_default=True)
+@click.option("--ff-dim", type=int, default=1024, show_default=True)
 @click.option("--patience", type=int, default=5, show_default=True)
 @click.option(
     "--samples-per-deck",
@@ -233,9 +255,16 @@ def train_proposal_cmd(
     prepared_dir: Path,
     encoder_export_dir: Path,
     out_dir: Path,
+    train_split: str,
+    target_mode: str,
     epochs: int,
     batch_size: int,
     learning_rate: float,
+    weight_decay: float,
+    dropout: float,
+    d_model: int,
+    n_layers: int,
+    ff_dim: int,
     patience: int,
     samples_per_deck: int,
     entropy_beta: float,
@@ -247,9 +276,16 @@ def train_proposal_cmd(
         prepared_dir=prepared_dir,
         encoder_export_dir=encoder_export_dir,
         out_dir=out_dir,
+        train_split=train_split,
+        target_mode=TargetMode(target_mode),
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        dropout=dropout,
+        d_model=d_model,
+        n_layers=n_layers,
+        ff_dim=ff_dim,
         patience=patience,
         samples_per_deck=samples_per_deck,
         entropy_beta=entropy_beta,

@@ -86,15 +86,6 @@ class ProposalNetConfig:
     freeze_card_embeddings: bool = True
 
     def __post_init__(self) -> None:
-        if self.embed_dim != self.d_model:
-            # We broadcast-add the ink projection onto the card
-            # embeddings, so the dims must match. If a future encoder
-            # uses a different embed_dim we'd add a projection head
-            # instead of throwing; for now this makes mismatches loud.
-            raise ValueError(
-                f"embed_dim ({self.embed_dim}) must equal d_model ({self.d_model}) "
-                "for the ink broadcast-add path.",
-            )
         if self.d_model % self.n_heads != 0:
             raise ValueError(
                 f"d_model ({self.d_model}) must be divisible by n_heads ({self.n_heads}).",
@@ -163,6 +154,14 @@ class ProposalNet(nn.Module):
         else:
             self.card_embeddings = nn.Parameter(card_embeddings.detach().clone())
 
+        # Optional projection when the pretrained encoder's embed_dim
+        # doesn't match d_model. Identity path (no extra params) when
+        # they already agree so the default DESIGN config is
+        # parameter-identical to before this layer was added.
+        if cfg.embed_dim == cfg.d_model:
+            self.embed_projection: nn.Module = nn.Identity()
+        else:
+            self.embed_projection = nn.Linear(cfg.embed_dim, cfg.d_model, bias=False)
         self.ink_embed = InkEmbedding(cfg)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=cfg.d_model,
@@ -199,7 +198,10 @@ class ProposalNet(nn.Module):
             )
 
         # Lookup — uses buffer or parameter depending on freeze flag.
-        card_vecs = self.card_embeddings[card_ids]  # (B, N, d_model)
+        card_vecs = self.card_embeddings[card_ids]  # (B, N, embed_dim)
+        # Project to d_model if the encoder's embed_dim is wider/
+        # narrower than the Transformer. Identity for the default case.
+        card_vecs = self.embed_projection(card_vecs)  # (B, N, d_model)
         ink_vec = self.ink_embed(ink_multihot).unsqueeze(1)  # (B, 1, d_model)
         # Broadcast-add the ink bias across every card slot. PAD slots
         # receive it too — the padding mask excludes them from

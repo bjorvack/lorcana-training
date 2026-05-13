@@ -249,13 +249,27 @@ start with `β = 0.05` and search.
 
 Training data:
 
-- Take every tournament deck. Apply per-model recency filter (config).
+- Take every tournament deck. **Do not** apply the per-model 12-month
+  recency filter this section originally prescribed. A sweep on
+  `tournaments-v0.3.0` (see `scripts/sweep_proposal.py`) showed the
+  recency-filtered split (782 decks) produces severe overfitting —
+  held-out total loss climbs after epoch 2 while training continues
+  down. Widening to the full validated set (~2 780 decks) drops
+  held-out total from 4.03 to 2.98 (−26 %) and lets the model
+  actually reach epoch 7 before plateauing. The held-out set is
+  stratified by `(ink_pair, month)` so month-distribution drift is
+  already controlled for. `prepare` still emits a recency-filtered
+  `train.proposal.jsonl` artifact for experimentation, but the
+  defaults in `ProposalOptions` and the `train-proposal` CLI point
+  at `train.evaluator.jsonl`.
 - For each deck, generate `k_pos = 12` masked examples by removing one
   card at a time uniformly at random.
 - The label is a *distribution*, not a one-hot: if a card appears in 3
   copies, the target distribution puts mass on that card id with weight
   proportional to remaining copies. (Standard label-smoothing variant
-  for multisets.)
+  for multisets.) The same sweep confirmed a per-mask one-hot-on-the-
+  removed-card alternative is ~10 % *worse* on held-out, so the
+  full-deck distribution stays the default.
 
 Outputs are *not* used directly at inference; they are blended with the
 Evaluator and a novelty bonus inside `lorcana-web`'s search loop.

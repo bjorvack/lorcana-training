@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -42,6 +43,27 @@ import torch
 from torch.utils.data import Dataset
 
 from ..models.proposal import INK_VECTOR_DIM
+
+
+class TargetMode(str, Enum):
+    """How to convert a deck + mask into a target distribution.
+
+    - :attr:`FULL_DECK` (DESIGN.md "standard label-smoothing for
+      multisets"): target[c] = count_in_full_deck(c) / 60, i.e. every
+      card that was in the deck is a valid answer weighted by copies.
+      Same target across all masks of a deck → the model effectively
+      sees each deck as one (noisy-input, fixed-output) example.
+    - :attr:`ONE_HOT_REMOVED`: target is a delta on the card that was
+      removed in this specific mask. 12 masks per deck → 12 distinct
+      (input, output) examples. Aggregated across masks the *marginal*
+      target matches FULL_DECK, so the loss surface is the same; the
+      per-sample gradient noise just acts as label-level
+      regularisation that tends to fight overfitting on small sets.
+    """
+
+    FULL_DECK = "full_deck"
+    ONE_HOT_REMOVED = "one_hot_removed"
+
 
 # Canonical ink ordering. Must match
 # ``cards.features._INKS`` (lowercased) so the multi-hot slot
@@ -123,23 +145,28 @@ def target_distribution_from_deck(
 def sample_partial(
     deck: Deck,
     rng: random.Random,
-) -> list[int]:
-    """Remove one card copy uniformly at random; return the remaining multiset.
+) -> tuple[list[int], int]:
+    """Remove one card copy uniformly at random.
 
     "Uniformly at random" here means "weighted by multiplicity" — a
     card with 3 copies is three times more likely to have one of its
     copies removed than a card with 1 copy. This is what DESIGN.md
     calls "removing one card at a time uniformly at random" (uniform
     over the 60 *positions*, not the |unique| card ids).
+
+    Returns ``(remaining_multiset, removed_card_index)`` so callers
+    that need a per-mask one-hot target can build it without
+    re-sampling. The ``remaining_multiset`` never contains PAD=0.
     """
     # Expand to the multiset — a 60-element list of ids.
     expanded: list[int] = []
     for idx, count in deck.cards:
         expanded.extend([idx] * count)
     if not expanded:
-        return expanded
+        return expanded, 0
     drop_at = rng.randrange(len(expanded))
-    return expanded[:drop_at] + expanded[drop_at + 1 :]
+    removed = expanded[drop_at]
+    return expanded[:drop_at] + expanded[drop_at + 1 :], removed
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +191,15 @@ class ProposalDataset(Dataset[ProposalSample]):
     partials. The caller's RNG comes from ``torch.manual_seed`` for
     reproducibility; pass an explicit ``seed`` for tests that need to
     pin the exact sequence.
+
+    ``target_mode`` selects between the two supported label formulations
+    (see :class:`TargetMode`). FULL_DECK is cheaper (one precomputed
+    target per deck) but gives the model the same label across all
+    masks of a deck; ONE_HOT_REMOVED builds a per-sample one-hot on
+    the card that was removed, which acts as label-level
+    regularisation — helpful when the training set is small enough
+    that the model would otherwise memorise the 782-deck target
+    distribution directly.
     """
 
     def __init__(
@@ -172,6 +208,7 @@ class ProposalDataset(Dataset[ProposalSample]):
         *,
         vocab_size: int,
         samples_per_deck: int = 12,
+        target_mode: TargetMode = TargetMode.FULL_DECK,
         seed: int | None = None,
     ) -> None:
         if not decks:
@@ -181,15 +218,20 @@ class ProposalDataset(Dataset[ProposalSample]):
         self._decks = list(decks)
         self._vocab_size = vocab_size
         self._samples_per_deck = samples_per_deck
-        # Precompute the dense target distribution per deck: it doesn't
-        # depend on which card we mask, so paying the allocation cost
-        # once per deck (rather than per sample) is pure win.
-        self._targets = tuple(target_distribution_from_deck(d, vocab_size) for d in decks)
+        self._target_mode = target_mode
+        # Precompute the full-deck target once per deck. For ONE_HOT
+        # mode it's unused at __getitem__ time but we keep the slot so
+        # subclasses / eval paths can fall back to the marginal.
+        self._full_deck_targets = tuple(target_distribution_from_deck(d, vocab_size) for d in decks)
         self._ink_vectors = tuple(ink_multihot(d.inks) for d in decks)
         self._seed = seed
 
     def __len__(self) -> int:
         return len(self._decks) * self._samples_per_deck
+
+    @property
+    def target_mode(self) -> TargetMode:
+        return self._target_mode
 
     def __getitem__(self, index: int) -> ProposalSample:
         deck_index = index // self._samples_per_deck
@@ -199,7 +241,7 @@ class ProposalDataset(Dataset[ProposalSample]):
         # would break multi-worker DataLoaders).
         rng = random.Random(None if self._seed is None else self._seed ^ index ^ 0x9E3779B1)
         deck = self._decks[deck_index]
-        remaining = sample_partial(deck, rng)
+        remaining, removed = sample_partial(deck, rng)
         if not remaining:
             # Defensive; a validated deck has ≥ 60 copies. If we ever
             # hit this, emit a single-PAD sequence so the batch shape
@@ -207,10 +249,21 @@ class ProposalDataset(Dataset[ProposalSample]):
             partial_ids = torch.zeros(1, dtype=torch.long)
         else:
             partial_ids = torch.tensor(remaining, dtype=torch.long)
+
+        if self._target_mode is TargetMode.ONE_HOT_REMOVED:
+            # Per-mask one-hot on the removed card. Small cost: a
+            # vocab-sized zero allocation per sample. Could be folded
+            # into a smarter sparse target later if it shows up in
+            # profiling — not worth optimising before it hurts.
+            target = torch.zeros(self._vocab_size + 1, dtype=torch.float32)
+            target[removed] = 1.0
+        else:
+            target = self._full_deck_targets[deck_index]
+
         return ProposalSample(
             partial_ids=partial_ids,
             ink_multihot=self._ink_vectors[deck_index],
-            target_distribution=self._targets[deck_index],
+            target_distribution=target,
         )
 
 

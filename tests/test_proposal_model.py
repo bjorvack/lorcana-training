@@ -200,9 +200,17 @@ def test_proposal_net_rejects_wrong_embedding_shape() -> None:
         ProposalNet(cfg, card_embeddings=torch.zeros(cfg.vocab_size + 1, cfg.d_model + 4))
 
 
-def test_proposal_net_rejects_mismatched_d_model_embed_dim() -> None:
-    with pytest.raises(ValueError, match="embed_dim"):
-        ProposalNetConfig(vocab_size=4, embed_dim=64, d_model=32)
+def test_proposal_net_accepts_different_embed_dim_and_d_model() -> None:
+    """A projection layer should bridge encoder embed_dim != Transformer d_model."""
+    cfg = ProposalNetConfig(
+        vocab_size=8, embed_dim=32, d_model=16, n_heads=4, n_layers=1, ff_dim=32, dropout=0.0
+    )
+    model = ProposalNet(cfg, card_embeddings=torch.randn(cfg.vocab_size + 1, cfg.embed_dim))
+    model.eval()
+    ids = torch.tensor([[1, 2, 0]], dtype=torch.long)
+    ink = torch.zeros(1, INK_VECTOR_DIM)
+    out = model(ids, ink)
+    assert out.shape == (1, cfg.vocab_size + 1)
 
 
 def test_proposal_net_rejects_bad_head_divisibility() -> None:

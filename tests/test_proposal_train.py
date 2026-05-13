@@ -79,7 +79,13 @@ def _build_prepared_dir(
 
     train_decks = [deck(i, ["amber", "ruby"]) for i in range(n_train)]
     heldout_decks = [deck(i + 100, ["amber", "ruby"]) for i in range(n_heldout)]
+    # Write BOTH splits so the test exercises the default
+    # (train.evaluator.jsonl) without caring whether the default flips
+    # again in a future sweep. train.proposal.jsonl is also present so
+    # tests that want to exercise the recency-filtered path can switch
+    # with just the ``train_split`` option.
     _write_jsonl(prepared / "train.proposal.jsonl", train_decks)
+    _write_jsonl(prepared / "train.evaluator.jsonl", train_decks)
     _write_jsonl(prepared / "heldout.jsonl", heldout_decks)
     return prepared
 

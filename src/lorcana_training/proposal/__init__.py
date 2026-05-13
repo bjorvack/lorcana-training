@@ -3,6 +3,7 @@
 from .data import (
     ProposalDataset,
     ProposalSample,
+    TargetMode,
     collate_proposal,
     load_decks_jsonl,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "ProposalOptions",
     "ProposalResult",
     "ProposalSample",
+    "TargetMode",
     "collate_proposal",
     "load_decks_jsonl",
     "train_proposal",

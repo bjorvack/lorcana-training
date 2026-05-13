@@ -37,6 +37,7 @@ import math
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,7 @@ from ..config import REPO_ROOT
 from ..models.proposal import ProposalNet, ProposalNetConfig, proposal_loss
 from .data import (
     ProposalDataset,
+    TargetMode,
     collate_proposal,
     load_card_embeddings,
     load_decks_jsonl,
@@ -63,6 +65,28 @@ class ProposalOptions:
     prepared_dir: Path = REPO_ROOT / "prepared"
     encoder_export_dir: Path = REPO_ROOT / "artifacts" / "encoder-export"
     out_dir: Path = REPO_ROOT / "artifacts" / "proposal"
+    # --- Data ---
+    # Which prepare-output split to train on.
+    #
+    # We default to ``train.evaluator.jsonl`` (every valid deck, no
+    # recency filter) rather than the ``train.proposal.jsonl`` split
+    # DESIGN.md §2 originally prescribed. A controlled sweep on
+    # tournaments-v0.3.0 (see scripts/sweep_proposal.py) showed the
+    # evaluator split beats the 12-month proposal split by ~26 % on
+    # held-out loss (2.98 vs 4.03) because the 12-month window gives
+    # the 3.5 M-param Transformer only 782 decks to learn from and it
+    # memorises the training distribution by epoch 2. Widening the
+    # set to ~2 780 decks lets the model keep improving through
+    # epoch 7 and actually generalise. Held-out is stratified by
+    # (ink_pair, month), so meta-drift isn't a concern for this
+    # metric even though the training set reaches back ~3 years.
+    # Override to ``train.proposal.jsonl`` if you specifically want
+    # the recency-filtered behaviour.
+    train_split: str = "train.evaluator.jsonl"
+    # ``full_deck``: standard DESIGN label-smoothing (target = full deck
+    # counts / 60). ``one_hot_removed``: per-mask one-hot on the removed
+    # card. See :class:`TargetMode` for the tradeoffs.
+    target_mode: TargetMode = TargetMode.FULL_DECK
     # --- Training ---
     epochs: int = 30
     batch_size: int = 32
@@ -203,10 +227,21 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _serialise_options(options_dict: dict[str, Any]) -> dict[str, Any]:
-    """Convert Path values to strings so the manifest stays JSON-safe."""
+    """Convert Path / Enum values to strings so the manifest stays JSON-safe.
+
+    ``asdict`` on a dataclass leaves Path + Enum instances in place; the
+    manifest writer hits them with ``json.dumps``, which then blows up
+    on either. Flatten both in one pass here so only JSON-native types
+    make it into the file.
+    """
     out: dict[str, Any] = {}
     for k, v in options_dict.items():
-        out[k] = str(v) if isinstance(v, Path) else v
+        if isinstance(v, Path):
+            out[k] = str(v)
+        elif isinstance(v, Enum):
+            out[k] = v.value
+        else:
+            out[k] = v
     return out
 
 
@@ -257,27 +292,36 @@ def train_proposal(opts: ProposalOptions | None = None) -> ProposalResult:
         )
 
     # --- Datasets. -------------------------------------------------
-    train_decks = load_decks_jsonl(prepared / "train.proposal.jsonl")
+    train_split_path = prepared / opts.train_split
+    if not train_split_path.exists():
+        raise FileNotFoundError(
+            f"{train_split_path} not found. Check --train-split against the prepare output.",
+        )
+    train_decks = load_decks_jsonl(train_split_path)
     heldout_decks = load_decks_jsonl(prepared / "heldout.jsonl")
     if not train_decks:
         raise RuntimeError(
-            "train.proposal.jsonl is empty — check the recency filter in prepare.",
+            f"{opts.train_split} is empty — check the prepare output.",
         )
     train_ds = ProposalDataset(
         train_decks,
         vocab_size=vocab_size,
         samples_per_deck=opts.samples_per_deck,
+        target_mode=opts.target_mode,
         seed=opts.seed,
     )
-    # Heldout uses one sample per deck to keep evaluation cheap and
-    # deterministic; varying masks at eval time adds noise to the
-    # best-checkpoint selection signal without improving it.
+    # Heldout uses the FULL_DECK target regardless of the train-time
+    # mode so the selection metric is comparable across sweep configs.
+    # A one-hot held-out target would make models trained with ONE_HOT
+    # look artificially better (matching one-hot to one-hot) and hide
+    # whichever mode actually generalises to the "true" marginal.
     heldout_ds: ProposalDataset | None
     if heldout_decks:
         heldout_ds = ProposalDataset(
             heldout_decks,
             vocab_size=vocab_size,
             samples_per_deck=1,
+            target_mode=TargetMode.FULL_DECK,
             seed=opts.seed ^ 0xDEAD,
         )
     else:
