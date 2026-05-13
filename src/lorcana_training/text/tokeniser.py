@@ -42,7 +42,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from tokenizers import Tokenizer
+from tokenizers import AddedToken, Tokenizer
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import ByteLevel as ByteLevelPreTokenizer
@@ -82,6 +82,16 @@ GAME_GLYPHS: tuple[str, ...] = (
     "{2}",
     "{IW}",
 )
+
+# Stat modifiers. "Resist +1", "Challenger +2", "gets -3 {S}" — ubiquitous
+# across the card pool. We reserve +/- N for single-digit N so the pattern
+# "<keyword> +N" always encodes identically and the model learns one
+# consistent "magnitude" signal. Without this, "Resist +1" splits into
+# three tokens ([Resist], [Ġ+], [1]) while "Shift 4" splits into two
+# ([Shift], [Ġ4]), making the structural similarity invisible to the
+# encoder. Observed range in cards-v2026.05.13-01 is -5..+7; we reserve
+# -9..+9 for some headroom.
+STAT_MODIFIERS: tuple[str, ...] = tuple(f"{sign}{n}" for sign in ("+", "-") for n in range(10))
 
 
 def _build_tokeniser() -> Tokenizer:
@@ -123,13 +133,22 @@ def train_tokeniser(
             continue
         seen.add(token)
         extras.append(token)
-    all_specials = list(SPECIAL_TOKENS) + extras
+
+    # Reserved domain tokens use `lstrip=True` so they consume the
+    # preceding space. Without this, byte-level pre-tokenisation splits
+    # the space into its own `Ġ` token and "Resist +1" encodes as
+    # (Resist, Ġ, +1) rather than the intended (Resist, +1). Core
+    # specials ([PAD] etc.) don't need it because they never sit
+    # adjacent to arbitrary text.
+    special_tokens_for_trainer: list = list(SPECIAL_TOKENS) + [
+        AddedToken(t, lstrip=True, rstrip=False, normalized=False) for t in extras
+    ]
 
     tok = _build_tokeniser()
     trainer = BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=min_frequency,
-        special_tokens=all_specials,
+        special_tokens=special_tokens_for_trainer,
         # Seed the vocab with the byte alphabet so every codepoint is
         # guaranteed-representable.
         initial_alphabet=ByteLevelPreTokenizer.alphabet(),
@@ -192,6 +211,8 @@ def collect_reserved_tokens(logical_cards: Iterable[LogicalCard]) -> list[str]:
 
     for glyph in GAME_GLYPHS:
         _add(glyph)
+    for mod in STAT_MODIFIERS:
+        _add(mod)
 
     for card in logical_cards:
         _add(card.name)

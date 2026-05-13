@@ -14,6 +14,7 @@ from lorcana_training.text.tokeniser import (
     MASK_TOKEN,
     PAD_TOKEN,
     SEP_TOKEN,
+    STAT_MODIFIERS,
     UNK_TOKEN,
     collect_reserved_tokens,
     load_tokeniser,
@@ -131,6 +132,9 @@ def test_collect_reserved_tokens_includes_names_classes_keywords_glyphs() -> Non
     # Glyphs ship first so they get low, stable ids.
     for glyph in GAME_GLYPHS:
         assert glyph in reserved
+    # Stat modifiers (+1..+9, -1..-9) ship atomically too.
+    for mod in STAT_MODIFIERS:
+        assert mod in reserved
     # Character short names are single atomic tokens.
     assert "Elsa" in reserved
     assert "Tinker Bell" in reserved
@@ -140,6 +144,37 @@ def test_collect_reserved_tokens_includes_names_classes_keywords_glyphs() -> Non
     # Keywords appear in both cases (card text is inconsistent).
     assert "Shift" in reserved
     assert "shift" in reserved
+
+
+def test_stat_modifiers_are_atomic_in_card_text(tmp_path: Path) -> None:
+    """``Resist +1`` and ``Resist +2`` should differ by exactly one token."""
+    cs = _cs(_card("Tank", classifications=("Hero",), keywords=("Resist", "Challenger")))
+    logical = build_logical_cards(cs)
+    reserved = collect_reserved_tokens(logical.cards)
+    tok = train_tokeniser(
+        _SAMPLE_TEXTS + [
+            "Resist +1 (Damage dealt to them is reduced by 1.)",
+            "Resist +2. Challenger +2.",
+        ],
+        out_path=tmp_path / "tok.json",
+        vocab_size=500,
+        reserved_tokens=reserved,
+    )
+    for phrase, expect_len in [
+        ("Resist +1", 2),
+        ("Resist +2", 2),
+        ("Challenger +2", 2),
+        ("Resist -1", 2),
+    ]:
+        enc = tok.encode(phrase, add_special_tokens=False)
+        assert len(enc.ids) == expect_len, (phrase, [tok.id_to_token(i) for i in enc.ids])
+
+    # Structural invariant: only the final token (the magnitude) differs
+    # between "+1" and "+2" in the same context.
+    a = tok.encode("Resist +1", add_special_tokens=False).ids
+    b = tok.encode("Resist +2", add_special_tokens=False).ids
+    assert a[:-1] == b[:-1]
+    assert a[-1] != b[-1]
 
 
 def test_reserved_tokens_are_not_split_by_bpe(tmp_path: Path) -> None:
