@@ -17,3 +17,27 @@ jobs:
       - run: uv sync --all-extras
       - run: uv run ruff check .
       - run: uv run pytest
+
+      # Guard against "bumped schemas_release_tag but forgot to re-run
+      # codegen". `schemas.gen` is idempotent, so if it produces a
+      # diff, CI refuses to merge.
+      - name: Verify generated pydantic models are in sync
+        run: |
+          uv run python -m lorcana_training.schemas.gen
+          git diff --exit-code src/lorcana_training/schemas/generated
+
+      # Live smoke against pinned cards-vN + tournaments-vN. Runs on
+      # every push to main so release-pin drift shows up quickly, and
+      # on PRs that explicitly ask for it via the `run-live` label.
+      # PRs without the label skip this to keep the feedback loop fast
+      # and avoid eating the GitHub API budget on every commit.
+      - name: prepare (live pinned artifacts)
+        if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-live')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NETWORK_TESTS: "1"
+        run: |
+          uv run lorcana-train prepare --out ./ci-prepared
+          # Network tests gate themselves on RUN_NETWORK_TESTS; pattern
+          # matches both test_download_*_pinned and test_*_live_*.
+          uv run pytest -k "pinned or live or collapse_ratio"
