@@ -1,8 +1,22 @@
 # Pinned upstream artifacts and core training hyperparameters.
-# TODO: finalise once the first encoder/proposal/evaluator train end-to-end.
+#
+# Every cross-repo dependency is pinned here by exact tag. Bump via a
+# reviewed PR; the `ModelManifest` emitted by `export` records all
+# three tags so published models can always be retraced to the data
+# and schemas they were trained against.
 
-cards_release_tag: latest
-tournaments_release_tag: latest
+# github.com/bjorvack/lorcana-schemas — JSON Schemas for pydantic codegen
+schemas_repo:          bjorvack/lorcana-schemas
+schemas_release_tag:   v0.4.0
+
+# github.com/bjorvack/lorcana-scraper — cards-vN (CardSet) + tournaments-vN (Dataset)
+scraper_repo:          bjorvack/lorcana-scraper
+cards_release_tag:     cards-v2026.05.13-01
+tournaments_release_tag: tournaments-v0.1.0
+
+# `encoder_release_tag` is unset until the first successful pretrain run; the
+# proposal and evaluator stages require it.
+# encoder_release_tag: encoder-vYYYY.MM.DD-NN
 
 encoder:
   embedding_dim: 256

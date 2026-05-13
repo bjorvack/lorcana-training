@@ -12,4 +12,6 @@ out
 artifacts
 checkpoints
 wandb
+.cache
+prepared
 notebooks/**/.ipynb_checkpoints
