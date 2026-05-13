@@ -1,2 +1,32 @@
 /Users/bjorn.vanacker/Development/Private/lorcana-deckbuilder/lorcana-training/src/lorcana_training/models/card_encoder.py:112: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
   self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=cfg.n_layers)
+[pretrain] epoch   1/40  train=35.0026  heldout=26.8717  lr=1.50e-04  (best)
+[pretrain] epoch   2/40  train=21.1222  heldout=16.2280  lr=3.00e-04  (best)
+[pretrain] epoch   3/40  train=14.9218  heldout=13.1910  lr=2.99e-04  (best)
+[pretrain] epoch   4/40  train=13.1448  heldout=11.5126  lr=2.98e-04  (best)
+[pretrain] epoch   5/40  train=11.3691  heldout=9.8579  lr=2.95e-04  (best)
+[pretrain] epoch   6/40  train=10.1654  heldout=9.7779  lr=2.92e-04  (best)
+[pretrain] epoch   7/40  train=9.1290  heldout=8.4620  lr=2.87e-04  (best)
+[pretrain] epoch   8/40  train=8.4387  heldout=8.1324  lr=2.82e-04  (best)
+[pretrain] epoch   9/40  train=7.9705  heldout=7.4953  lr=2.76e-04  (best)
+[pretrain] epoch  10/40  train=7.4571  heldout=7.4950  lr=2.68e-04  (best)
+[pretrain] epoch  11/40  train=7.0014  heldout=6.6832  lr=2.60e-04  (best)
+[pretrain] epoch  12/40  train=6.8887  heldout=6.6248  lr=2.52e-04  (best)
+[pretrain] epoch  13/40  train=6.4779  heldout=6.2616  lr=2.42e-04  (best)
+[pretrain] epoch  14/40  train=6.3672  heldout=6.5211  lr=2.32e-04  
+[pretrain] epoch  15/40  train=6.1554  heldout=5.8940  lr=2.21e-04  (best)
+[pretrain] epoch  16/40  train=6.0077  heldout=5.9295  lr=2.10e-04  
+[pretrain] epoch  17/40  train=5.8207  heldout=5.8370  lr=1.99e-04  (best)
+[pretrain] epoch  18/40  train=5.8309  heldout=5.7044  lr=1.87e-04  (best)
+[pretrain] epoch  19/40  train=5.6412  heldout=5.6117  lr=1.75e-04  (best)
+[pretrain] epoch  20/40  train=5.6234  heldout=5.5825  lr=1.62e-04  (best)
+[pretrain] epoch  21/40  train=5.5593  heldout=5.3175  lr=1.50e-04  (best)
+[pretrain] epoch  22/40  train=5.3418  heldout=5.1822  lr=1.38e-04  (best)
+[pretrain] epoch  23/40  train=5.3893  heldout=5.3028  lr=1.25e-04  
+[pretrain] epoch  24/40  train=5.3190  heldout=5.2816  lr=1.13e-04  
+[pretrain] epoch  25/40  train=5.1960  heldout=5.2047  lr=1.01e-04  
+[pretrain] epoch  26/40  train=5.2378  heldout=5.2737  lr=8.97e-05  
+[pretrain] epoch  27/40  train=5.1225  heldout=5.2268  lr=7.86e-05  
+[pretrain] epoch  28/40  train=5.1676  heldout=5.2357  lr=6.80e-05  
+[pretrain] early stop after 28 epochs (no improvement for 6)
+pretrain-encoder: best epoch 22, held-out total 5.1822. wrote artifacts/encoder

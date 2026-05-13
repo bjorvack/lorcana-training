@@ -14,6 +14,7 @@ from .pretrain import (
     export_card_embeddings as run_export,
     pretrain_encoder as run_pretrain,
 )
+from .release.promote_encoder import promote_encoder_cmd
 
 
 @click.group()
@@ -171,6 +172,9 @@ def export_encoder_cmd(
         f"{result.embedding_shape[0]}x{result.embedding_shape[1]} embeddings. "
         f"wrote {result.manifest_path}"
     )
+
+
+main.add_command(promote_encoder_cmd)
 
 
 @main.command()
