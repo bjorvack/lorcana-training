@@ -16,6 +16,7 @@ from .pretrain import (
 )
 from .evaluator import EvaluatorOptions, train_evaluator as run_train_evaluator
 from .export import OnnxExportOptions, export_models as run_export_models
+from .tables import BuildTablesOptions, build_tables as run_build_tables
 from .proposal import ProposalOptions, TargetMode, train_proposal as run_train_proposal
 from .release.promote_encoder import promote_encoder_cmd
 
@@ -394,6 +395,53 @@ def train() -> None:
 def evaluate() -> None:
     """Run the quality-gate evaluation suite."""
     raise NotImplementedError
+
+
+@main.command("build-tables")
+@click.option(
+    "--prepared",
+    "prepared_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "prepared",
+    show_default=True,
+)
+@click.option(
+    "--encoder-export",
+    "encoder_export_dir",
+    type=click.Path(file_okay=False, exists=True, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "encoder-export",
+    show_default=True,
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=REPO_ROOT / "artifacts" / "tables",
+    show_default=True,
+)
+@click.option("--k-archetypes", type=int, default=20, show_default=True)
+@click.option("--seed", type=int, default=0, show_default=True)
+def build_tables_cmd(
+    prepared_dir: Path,
+    encoder_export_dir: Path,
+    out_dir: Path,
+    k_archetypes: int,
+    seed: int,
+) -> None:
+    """Build play_frequency.json + archetype_centroids.json for model-vN."""
+    opts = BuildTablesOptions(
+        prepared_dir=prepared_dir,
+        encoder_export_dir=encoder_export_dir,
+        out_dir=out_dir,
+        k_archetypes=k_archetypes,
+        seed=seed,
+    )
+    result = run_build_tables(opts)
+    click.echo(
+        f"build-tables: {result.n_decks} decks -> "
+        f"play_frequency.json + archetype_centroids.json (k={result.k_effective}). "
+        f"wrote {result.manifest_path}"
+    )
 
 
 @main.command("export")
