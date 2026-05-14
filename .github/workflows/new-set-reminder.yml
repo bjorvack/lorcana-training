@@ -16,6 +16,11 @@ on:
   schedule:
     - cron: "0 9 * * *"
   workflow_dispatch: {}
+  # Fired by the scraper repo whenever a new ``cards-vN`` or
+  # ``tournaments-vN`` lands. Closes the daily-cron gap so the bump
+  # PR lands within minutes of the upstream release.
+  repository_dispatch:
+    types: [upstream-cards-released, upstream-tournaments-released]
 
 permissions:
   contents: write

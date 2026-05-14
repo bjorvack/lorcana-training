@@ -158,3 +158,15 @@ jobs:
           uv run lorcana-train promote-model \
             --version "${{ steps.version.outputs.version }}" \
             --no-prerelease
+
+      - name: Dispatch upstream-model-released to lorcana-web
+        if: steps.need.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          tag="model-v${{ steps.version.outputs.version }}"
+          curl -fSs -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/bjorvack/lorcana-web/dispatches \
+            -d "{\"event_type\":\"upstream-model-released\",\"client_payload\":{\"tag\":\"$tag\"}}"
