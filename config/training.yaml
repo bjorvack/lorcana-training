@@ -11,8 +11,8 @@ schemas_release_tag:   v0.5.0
 
 # github.com/bjorvack/lorcana-scraper — cards-vN (CardSet) + tournaments-vN (Dataset)
 scraper_repo:          bjorvack/lorcana-scraper
-cards_release_tag:     cards-v2026.05.14-01
-tournaments_release_tag: tournaments-v0.4.0
+cards_release_tag:     cards-v2026.05.14-02
+tournaments_release_tag: tournaments-v0.5.0
 
 # `encoder_release_tag` is unset until the first successful pretrain run; the
 # proposal and evaluator stages require it.
