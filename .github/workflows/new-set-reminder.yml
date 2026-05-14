@@ -21,6 +21,17 @@ on:
   # PR lands within minutes of the upstream release.
   repository_dispatch:
     types: [upstream-cards-released, upstream-tournaments-released]
+  # Run after any merge that touches the config or this workflow.
+  # A partial / manual bump (e.g. cards updated, tournaments left
+  # stale) is caught immediately and a corrective bump PR is opened
+  # automatically — the live ``test_download_tournaments_pinned``
+  # check no longer has to flap red while we wait for the next
+  # daily cron.
+  push:
+    branches: [main]
+    paths:
+      - config/training.yaml
+      - .github/workflows/new-set-reminder.yml
 
 permissions:
   contents: write
@@ -50,17 +61,34 @@ jobs:
 
           # The tournaments dataset is a snapshot taken against a
           # specific cards-vN. We refuse to suggest a mismatched
-          # pair: better to wait for ``scrape.yml`` to publish a
-          # fresh tournaments-vN against the latest cards-vN.
+          # pair: instead, we fire a scrape-now dispatch at the
+          # scraper repo so a fresh tournaments-vN gets published
+          # against the latest cards-vN, and *this* workflow will
+          # re-run via ``repository_dispatch`` to bump the pair.
           gh release download "$tour" --repo bjorvack/lorcana-scraper -p dataset.json -D /tmp/ds
           dt=$(python3 -c "import json; print(json.load(open('/tmp/ds/dataset.json'))['cardsReleaseTag'])")
           if [ "$dt" != "$cards" ]; then
             echo "tournaments_misaligned=1" >> "$GITHUB_OUTPUT"
-            echo "Tournaments $tour was scraped against $dt; latest cards is $cards. Skipping bump."
+            echo "Tournaments $tour was scraped against $dt; latest cards is $cards. Kicking scraper."
             exit 0
           fi
           echo "cards=$cards" >> "$GITHUB_OUTPUT"
           echo "tournaments=$tour" >> "$GITHUB_OUTPUT"
+
+      - name: Kick scraper to re-scrape tournaments
+        if: steps.latest.outputs.tournaments_misaligned == '1'
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          # Tell the scraper to run ``scrape.yml`` against the latest
+          # cards-vN. Once it publishes the fresh tournaments-vN,
+          # that workflow fires ``upstream-tournaments-released`` and
+          # *this* reminder runs again to bump the pair.
+          curl -fSs -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/bjorvack/lorcana-scraper/actions/workflows/scrape.yml/dispatches \
+            -d '{"ref":"main","inputs":{"force_publish":"true"}}'
 
       - name: Read current pins
         id: current

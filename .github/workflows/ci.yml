@@ -39,8 +39,16 @@ jobs:
       # on PRs that explicitly ask for it via the `run-live` label.
       # PRs without the label skip this to keep the feedback loop fast
       # and avoid eating the GitHub API budget on every commit.
+      #
+      # ``continue-on-error`` for push runs because the
+      # ``new-set-reminder`` workflow self-heals partial bumps by
+      # opening an auto-merging fix PR within seconds — failing the
+      # push run as well just paints main red while the fix is
+      # already in flight. PRs stay hard-failing so a partial bump
+      # can't actually land.
       - name: prepare (live pinned artifacts)
         if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-live')
+        continue-on-error: ${{ github.event_name == 'push' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_NETWORK_TESTS: "1"
