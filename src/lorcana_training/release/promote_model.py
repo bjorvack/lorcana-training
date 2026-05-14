@@ -56,6 +56,10 @@ _ONNX_ASSETS = (
     "evaluator.onnx",
     "card_embeddings.bin",
 )
+# Optional assets that newer export bundles produce but older ones
+# don't. We copy them through silently if present and skip cleanly
+# otherwise. ``card_inks.json`` joined the bundle in model-v0.2.
+_OPTIONAL_ONNX_ASSETS = ("card_inks.json",)
 _TABLE_ASSETS = (
     "play_frequency.json",
     "archetype_centroids.json",
@@ -117,6 +121,11 @@ def _stage_bundle(opts: PromoteModelOptions) -> Path:
             src.with_name(src.name + ".data"), (out_dir / name).with_name(name + ".data")
         )
 
+    # Optional assets ship through if present (newer model-vN). Older
+    # exports without them stage cleanly.
+    for name in _OPTIONAL_ONNX_ASSETS:
+        _copy_if_exists(opts.export_dir / name, out_dir / name)
+
     for name in _TABLE_ASSETS:
         src = opts.tables_dir / name
         if not src.exists():
@@ -146,6 +155,12 @@ def _verify_export_manifest(staged_dir: Path, export_dir: Path) -> dict[str, Any
         ("evaluator.onnx", manifest["evaluator"]["sha256"]),
         ("card_embeddings.bin", manifest["cardEmbeddings"]["sha256"]),
     ]
+    # ``cardInks`` was added in v0.2. Older export bundles don't
+    # have the key; staging would still copy a missing-source file
+    # and surface the user-friendly "expected card_inks.json in
+    # {export_dir}; not found" error from _stage_bundle.
+    if "cardInks" in manifest:
+        pairs.append(("card_inks.json", manifest["cardInks"]["sha256"]))
     for name, expected in pairs:
         got = _sha256(staged_dir / name)
         if got != expected:
@@ -288,6 +303,21 @@ def _build_model_manifest(
                 "dtype": export_manifest["cardEmbeddings"]["dtype"],
                 "padRow": export_manifest["cardEmbeddings"]["padRow"],
             },
+            # Optional in the runtime manifest because pre-v0.2 model
+            # bundles don't have it. Web clients should look for the
+            # key first and fall back to client-side legality if it
+            # isn't present.
+            **(
+                {
+                    "cardInks": {
+                        **_asset("card_inks.json"),
+                        "vocabSize": export_manifest["cardInks"]["vocabSize"],
+                        "inks": export_manifest["cardInks"]["inks"],
+                    }
+                }
+                if "cardInks" in export_manifest
+                else {}
+            ),
             "playFrequency": _asset("play_frequency.json"),
             "archetypeCentroids": _asset("archetype_centroids.json"),
             "vocab": _asset("vocab.json"),
@@ -371,6 +401,13 @@ def _release_assets(staged_dir: Path) -> list[str]:
         "vocab.json",
         "model-manifest.json",
     ]
+    # Append any optional assets the bundle staged. Newer model
+    # versions (>= v0.2) drop card_inks.json next to the .onnx files;
+    # we ship it iff present so the release inherits whatever the
+    # staging step put there.
+    for name in _OPTIONAL_ONNX_ASSETS:
+        if (staged_dir / name).exists():
+            files.append(name)
     # Optional sidecars live next to the .onnx they belong to.
     for sidecar in ("proposal.onnx.data", "evaluator.onnx.data"):
         if (staged_dir / sidecar).exists():

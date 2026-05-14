@@ -55,6 +55,27 @@ def _build_inputs(tmp_path: Path, vocab_size: int, embed_dim: int) -> dict[str, 
         ),
         encoding="utf8",
     )
+    # The export step now reads card_features.safetensors +
+    # feature_schema.json to derive a per-card ink mask. The test
+    # fixture writes a minimal pair: vocab_size cards, each with a
+    # single Amber ink bit so the mask payload is well-shaped.
+    feature_schema = {
+        "dim": 18,
+        "slices": {"cost": [0, 12], "inks": [12, 6], "types": [0, 0]},
+        "scalars": {},
+        "classes": {
+            "inks": ["Amber", "Amethyst", "Emerald", "Ruby", "Sapphire", "Steel"],
+        },
+        "normalisers": {},
+    }
+    (prepared / "feature_schema.json").write_text(json.dumps(feature_schema), encoding="utf8")
+    features = torch.zeros(vocab_size + 1, feature_schema["dim"], dtype=torch.float32)
+    # All cards "Amber" — enough for the ink-mask code path to run
+    # without contaminating any other test invariant.
+    features[1:, feature_schema["slices"]["inks"][0]] = 1.0
+    from safetensors.torch import save_file as _save_st_torch
+
+    _save_st_torch({"card_features": features}, str(prepared / "card_features.safetensors"))
 
     encoder = tmp_path / "encoder-export"
     encoder.mkdir(parents=True, exist_ok=True)

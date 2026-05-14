@@ -258,6 +258,64 @@ def _export_evaluator(
     )
 
 
+def _write_card_inks_json(prepared_dir: Path, out_path: Path) -> dict[str, Any]:
+    """Write a vocab-aligned per-card ink mask to ``out_path``.
+
+    Reads ``card_features.safetensors`` + ``feature_schema.json`` from
+    prepare's output (those are the canonical source of card-level
+    ink info) and emits a tiny JSON:
+
+        { "inks": ["Amber", "Amethyst", "Emerald", "Ruby",
+                   "Sapphire", "Steel"],
+          "vocabSize": <int>,
+          "mask": [0, 33, 17, ...] }  # len = vocabSize + 1, index 0 = PAD
+
+    Each entry is a 6-bit integer where bit *i* = 1 iff the card
+    belongs to ``inks[i]``. The web client can use this directly to
+    enforce ink-legality without re-deriving it from the full
+    CardSet, which removes the only cross-thread call our worker
+    needs to make on every Generate.
+
+    Returns the manifest entry describing the written file.
+    """
+    import json as _json  # local alias keeps module-level imports tidy
+
+    from safetensors.torch import load_file
+
+    schema_path = prepared_dir / "feature_schema.json"
+    features_path = prepared_dir / "card_features.safetensors"
+    if not schema_path.exists() or not features_path.exists():
+        raise FileNotFoundError(
+            "card_inks needs prepared/feature_schema.json + card_features.safetensors. "
+            "Run `lorcana-train prepare` first.",
+        )
+    schema = _json.loads(schema_path.read_text(encoding="utf8"))
+    inks_start, inks_len = schema["slices"]["inks"]
+    inks_names = schema["classes"]["inks"]
+    if inks_len != len(inks_names):
+        raise ValueError(
+            f"feature_schema inks slice length {inks_len} != names {inks_names}",
+        )
+    features = load_file(str(features_path))["card_features"]
+    ink_block = features[:, inks_start : inks_start + inks_len].cpu().to(torch.int64)
+    weights = torch.tensor([1 << i for i in range(inks_len)], dtype=torch.int64)
+    mask = (ink_block * weights).sum(dim=1).tolist()
+
+    payload = {
+        "inks": list(inks_names),
+        "vocabSize": int(features.shape[0]) - 1,  # drop PAD row
+        "mask": [int(v) for v in mask],
+    }
+    out_path.write_text(_json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf8")
+    return {
+        "path": out_path.name,
+        "sha256": _sha256(out_path),
+        "bytes": out_path.stat().st_size,
+        "vocabSize": payload["vocabSize"],
+        "inks": payload["inks"],
+    }
+
+
 def _write_embeddings_bin(embeddings: torch.Tensor, out_path: Path, dtype: str) -> None:
     """Write the table as a contiguous raw tensor. Format is just:
 
@@ -334,6 +392,8 @@ def export_models(opts: OnnxExportOptions | None = None) -> OnnxExportResult:
     _export_proposal(proposal_model, card_embeddings, proposal_onnx)
     _export_evaluator(evaluator_model, card_embeddings, evaluator_onnx)
     _write_embeddings_bin(card_embeddings, embeddings_bin, opts.embeddings_dtype)
+    card_inks_path = opts.out_dir / "card_inks.json"
+    card_inks_entry = _write_card_inks_json(prepared, card_inks_path)
 
     # --- Manifest ----------------------------------------------------
     # Dynamo-mode torch.onnx.export emits a sibling ``.onnx.data``
@@ -388,6 +448,10 @@ def export_models(opts: OnnxExportOptions | None = None) -> OnnxExportResult:
             "dtype": opts.embeddings_dtype,
             "padRow": 0,
         },
+        # New in v0.2: per-card 6-bit ink mask the web client uses
+        # for hard-rule legality. Index 0 is PAD (mask = 0), rows
+        # 1..vocabSize match the proposal/evaluator logical ids.
+        "cardInks": card_inks_entry,
         "vocabSize": vocab_size,
         "sources": {
             "prepared": str(prepared),
