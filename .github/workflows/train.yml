@@ -1,9 +1,160 @@
 name: train
+
+# Full end-to-end retrain. The point is that a fresh ``cards-vN`` +
+# ``tournaments-vN`` pair on ``bjorvack/lorcana-scraper`` triggers
+# a self-contained pipeline that:
+#
+#   1. confirms ``config/training.yaml`` is in sync (the
+#      ``new-set-reminder`` workflow opens an auto-merging PR when
+#      it isn't; this workflow's ``workflow_run`` trigger fires
+#      after that PR lands on main).
+#   2. runs ``prepare → pretrain-encoder → export-encoder →
+#      train-proposal → train-evaluator → build-tables → export``
+#      on a CPU runner. ~1-2h end-to-end with default hyperparams.
+#   3. publishes a non-prerelease ``model-v<auto-version>`` GitHub
+#      release that ``lorcana-web``'s ``new-cards-reminder`` will
+#      pick up on its next daily run.
+#
+# Single concurrent run; queued reruns get cancelled because a
+# fresher data drop will always supersede an in-flight retrain.
+# Schedule is conservative (weekly) so a no-op poll is cheap; the
+# real trigger is the ``workflow_run`` hook off new-set-reminder.
+
 on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
   workflow_dispatch:
-# TODO: full release training (proposal + evaluator) + open release PR.
+    inputs:
+      force_publish:
+        description: "Publish even if config didn't change"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      # Trigger on a config bump (the auto-merge PR from
+      # ``new-set-reminder``) and on any pipeline / model code edit
+      # that would change the trained artefacts.
+      - config/training.yaml
+      - src/lorcana_training/**
+      - .github/workflows/train.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: train
+  cancel-in-progress: true
+
 jobs:
-  noop:
+  train:
     runs-on: ubuntu-latest
+    # 6 hours is the GitHub-hosted runner ceiling; the full pipeline
+    # finishes in under 2 today.
+    timeout-minutes: 350
     steps:
-      - run: echo stub
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - run: uv python install 3.12
+      - run: uv sync --all-extras
+
+      - name: Resolve latest upstream
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cards=$(gh release list --repo bjorvack/lorcana-scraper --limit 50 --json tagName -q '.[].tagName' \
+            | grep -E '^cards-v' | head -n 1)
+          tour=$(gh release list --repo bjorvack/lorcana-scraper --limit 50 --json tagName -q '.[].tagName' \
+            | grep -E '^tournaments-v' | head -n 1)
+          echo "cards=$cards" >> "$GITHUB_OUTPUT"
+          echo "tournaments=$tour" >> "$GITHUB_OUTPUT"
+
+      - name: Need retrain?
+        id: need
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cur_cards=$(awk -F: '/^cards_release_tag:/{gsub(/ /, "", $2); print $2}' config/training.yaml)
+          cur_tour=$(awk -F: '/^tournaments_release_tag:/{gsub(/ /, "", $2); print $2}' config/training.yaml)
+          # Is there already a published model-vN whose manifest
+          # references this exact pair? If yes, retrain is wasted.
+          mkdir -p /tmp/latestmodel
+          model=$(gh release list --repo bjorvack/lorcana-training --limit 20 --json tagName,isPrerelease -q '.[] | select(.isPrerelease|not) | .tagName' | grep -E '^model-v' | head -n 1 || true)
+          published_cards=""
+          published_tour=""
+          if [ -n "$model" ]; then
+            gh release download "$model" --repo bjorvack/lorcana-training -p model-manifest.json -D /tmp/latestmodel || true
+            if [ -f /tmp/latestmodel/model-manifest.json ]; then
+              published_cards=$(python3 -c "import json; print(json.load(open('/tmp/latestmodel/model-manifest.json'))['sources']['cardsReleaseTag'])")
+              published_tour=$(python3 -c "import json; print(json.load(open('/tmp/latestmodel/model-manifest.json'))['sources']['tournamentsReleaseTag'])")
+            fi
+          fi
+          force='${{ inputs.force_publish }}'
+          if [ "$force" != "true" ] \
+             && [ "$published_cards" = "$cur_cards" ] \
+             && [ "$published_tour" = "$cur_tour" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "model-v… already covers ${cur_cards} + ${cur_tour}; skipping retrain."
+          fi
+
+      - name: prepare
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train prepare --force
+
+      - name: pretrain-encoder
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train pretrain-encoder --epochs 40 --device cpu
+
+      - name: export-encoder
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train export-encoder --device cpu
+
+      - name: train-proposal
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train train-proposal --device cpu
+
+      - name: train-evaluator
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train train-evaluator --device cpu
+
+      - name: build-tables
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train build-tables
+
+      - name: export
+        if: steps.need.outputs.skip != '1'
+        run: uv run lorcana-train export
+
+      - name: Compute next version
+        id: version
+        if: steps.need.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Semver minor bump off the latest model-vX.Y.Z if one
+          # exists; otherwise start at 1.0.0. A non-prerelease major
+          # bump should still be a human decision.
+          latest=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 50 --json tagName,isPrerelease -q '.[] | select(.isPrerelease|not) | .tagName' | grep -E '^model-v' | head -n 1 || true)
+          if [ -z "$latest" ]; then
+            ver="1.0.0"
+          else
+            IFS=. read -r major minor patch <<<"${latest#model-v}"
+            ver="${major}.$((minor + 1)).0"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: promote-model
+        if: steps.need.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv run lorcana-train promote-model \
+            --version "${{ steps.version.outputs.version }}" \
+            --no-prerelease
