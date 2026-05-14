@@ -1,11 +1,110 @@
 name: new-set-reminder
+
+# Polls upstream daily. When the pinned ``cards-vN`` or
+# ``tournaments-vN`` in ``config/training.yaml`` falls behind the
+# latest published release on ``bjorvack/lorcana-scraper``, opens a PR
+# that bumps the matching pair (cards + tournaments must agree on a
+# single ``cards-vN``; the tournaments dataset's ``cardsReleaseTag``
+# is the source of truth for the pair). Bumping both together
+# guarantees CI's ``test_download_tournaments_pinned`` stays green.
+#
+# Regenerates the pinned pydantic schemas in the same PR so the
+# ``schemas_release_tag`` bump (when present) doesn't leave the
+# generated modules out of date.
+
 on:
   schedule:
     - cron: "0 9 * * *"
-  workflow_dispatch:
-# TODO: open an issue if the pinned cards-vN has drifted from latest.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
-  noop:
+  poll:
     runs-on: ubuntu-latest
     steps:
-      - run: echo stub
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Resolve latest cards-vN + tournaments-vN
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cards=$(gh release list --repo bjorvack/lorcana-scraper --limit 50 --json tagName -q '.[].tagName' \
+            | grep -E '^cards-v' | head -n 1)
+          tour=$(gh release list --repo bjorvack/lorcana-scraper --limit 50 --json tagName -q '.[].tagName' \
+            | grep -E '^tournaments-v' | head -n 1)
+          [ -n "$cards" ] && [ -n "$tour" ] || { echo "Could not resolve upstream tags"; exit 1; }
+
+          # The tournaments dataset is a snapshot taken against a
+          # specific cards-vN. We refuse to suggest a mismatched
+          # pair: better to wait for ``scrape.yml`` to publish a
+          # fresh tournaments-vN against the latest cards-vN.
+          gh release download "$tour" --repo bjorvack/lorcana-scraper -p dataset.json -D /tmp/ds
+          dt=$(python3 -c "import json; print(json.load(open('/tmp/ds/dataset.json'))['cardsReleaseTag'])")
+          if [ "$dt" != "$cards" ]; then
+            echo "tournaments_misaligned=1" >> "$GITHUB_OUTPUT"
+            echo "Tournaments $tour was scraped against $dt; latest cards is $cards. Skipping bump."
+            exit 0
+          fi
+          echo "cards=$cards" >> "$GITHUB_OUTPUT"
+          echo "tournaments=$tour" >> "$GITHUB_OUTPUT"
+
+      - name: Read current pins
+        id: current
+        run: |
+          set -euo pipefail
+          cur_cards=$(awk -F: '/^cards_release_tag:/{gsub(/ /, "", $2); print $2}' config/training.yaml)
+          cur_tour=$(awk -F: '/^tournaments_release_tag:/{gsub(/ /, "", $2); print $2}' config/training.yaml)
+          echo "cards=$cur_cards" >> "$GITHUB_OUTPUT"
+          echo "tournaments=$cur_tour" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to bump
+        id: decide
+        if: steps.latest.outputs.tournaments_misaligned != '1'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.latest.outputs.cards }}" = "${{ steps.current.outputs.cards }}" ] \
+             && [ "${{ steps.latest.outputs.tournaments }}" = "${{ steps.current.outputs.tournaments }}" ]; then
+            echo "fresh=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply bump
+        if: steps.decide.outputs.fresh != '1' && steps.latest.outputs.tournaments_misaligned != '1'
+        run: |
+          set -euo pipefail
+          sed -i "s|^cards_release_tag:.*|cards_release_tag:     ${{ steps.latest.outputs.cards }}|" config/training.yaml
+          sed -i "s|^tournaments_release_tag:.*|tournaments_release_tag: ${{ steps.latest.outputs.tournaments }}|" config/training.yaml
+          uv run python -m lorcana_training.schemas.gen
+          git diff -- config/training.yaml src/lorcana_training/schemas/generated || true
+
+      - name: Open / update PR
+        if: steps.decide.outputs.fresh != '1' && steps.latest.outputs.tournaments_misaligned != '1'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/bump-pinned-artifacts
+          commit-message: |
+            chore(config): bump pinned cards-vN + tournaments-vN
+
+            cards: ${{ steps.current.outputs.cards }} -> ${{ steps.latest.outputs.cards }}
+            tournaments: ${{ steps.current.outputs.tournaments }} -> ${{ steps.latest.outputs.tournaments }}
+          title: "chore(config): bump pinned cards-vN + tournaments-vN"
+          body: |
+            The pinned upstream artifacts in `config/training.yaml`
+            fell behind the latest published releases on
+            `bjorvack/lorcana-scraper`. This PR bumps them as a
+            pair and regenerates the pydantic schemas to keep
+            `test_schemas_generated.py` happy.
+
+            - cards: `${{ steps.current.outputs.cards }}` → `${{ steps.latest.outputs.cards }}`
+            - tournaments: `${{ steps.current.outputs.tournaments }}` → `${{ steps.latest.outputs.tournaments }}`
+
+            Auto-generated by `.github/workflows/new-set-reminder.yml`.
+          labels: chore, automation
