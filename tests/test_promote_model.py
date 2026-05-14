@@ -144,8 +144,6 @@ def _build_bundle(tmp_path: Path, *, cards_tag: str = "cards-vTEST") -> dict[str
 
 def test_promote_model_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # load_config() needs to return the same cards tag the manifests use.
-    from lorcana_training import config as cfg_module
-
     from lorcana_training.release import promote_model as pm_module
 
     monkeypatch.setattr(pm_module, "load_config", _stub_config("cards-vTEST"))
