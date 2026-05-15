@@ -7,7 +7,7 @@
 
 # github.com/bjorvack/lorcana-schemas — JSON Schemas for pydantic codegen
 schemas_repo:          bjorvack/lorcana-schemas
-schemas_release_tag:   v0.5.0
+schemas_release_tag:   v0.7.0
 
 # github.com/bjorvack/lorcana-scraper — cards-vN (CardSet) + tournaments-vN (Dataset)
 scraper_repo:          bjorvack/lorcana-scraper
